@@ -4,21 +4,27 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
 
-public class ActionDispatcher {
+public class ActionParser {
     public record Action(String thought, String name, Map<String, String> args) {
     }
 
     private static final ObjectMapper mapper = new ObjectMapper();
 
-    public String dispatch(String response) {
+    public Action parse(String response) {
         String thought = extractThought(response);
-        JsonNode jsonNode = extractToolCalls()
-        return "";
+        JsonNode jsonNode = extractToolCalls(response);
+        if (jsonNode.isNull())
+            throw new RuntimeException("Invalid action JSON or argument type.Generate the tool call again using valid JSON.");
+        String name = jsonNode.path("name").asText();
+        JsonNode paramsNode = jsonNode.path("arguments");
+        Map<String, String> args = new HashMap<>();
+        paramsNode.fieldNames().forEachRemaining(field -> {
+            args.put(field, paramsNode.path(field).asText());
+        });
+        return new Action(thought, name, args);
     }
 
     private static final String OPEN_TAG = "<tool_call>";
@@ -47,16 +53,23 @@ public class ActionDispatcher {
             }
 
             String candidate = response.substring(start, end).trim();
-
             try {
-                return mapper.readTree(candidate);
+                JsonNode node = mapper.readTree(candidate);
+
+                if (node.isObject()
+                        && node.path("name").isTextual()
+                        && node.path("arguments").isObject()) {
+                    return node;
+                }
 
             } catch (JsonProcessingException ignored) {
             }
 
-            searchFrom = nextTag >= 0
-                    ? nextTag
-                    : end + (closeTag >= 0 ? CLOSE_TAG.length() : 0);
+            if (nextTag < 0) {
+                break;
+            }
+
+            searchFrom = nextTag;
         }
 
         return mapper.nullNode();

@@ -1,4 +1,7 @@
 package org.iaproject.memchat.action;
 
-public class ActionArgs {
+import java.util.List;
+
+public record AgentAction(String name) {
+
 }
