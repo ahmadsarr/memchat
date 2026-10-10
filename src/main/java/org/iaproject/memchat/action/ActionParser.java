@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ActionParser {
-    public record Action(String thought, String name, Map<String, String> args) {
+    public record Action(String thought, String name, JsonNode args) {
     }
 
     private static final ObjectMapper mapper = new ObjectMapper();
@@ -20,11 +20,8 @@ public class ActionParser {
             throw new RuntimeException("Invalid action JSON or argument type.Generate the tool call again using valid JSON.");
         String name = jsonNode.path("name").asText();
         JsonNode paramsNode = jsonNode.path("arguments");
-        Map<String, String> args = new HashMap<>();
-        paramsNode.fieldNames().forEachRemaining(field -> {
-            args.put(field, paramsNode.path(field).asText());
-        });
-        return new Action(thought, name, args);
+
+        return new Action(thought, name, paramsNode);
     }
 
     private static final String OPEN_TAG = "<tool_call>";

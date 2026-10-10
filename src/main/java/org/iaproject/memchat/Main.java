@@ -7,6 +7,7 @@ import org.iaproject.memchat.llm.OpenAICompatibleClient;
 import org.iaproject.memchat.llm.PromptBuilder;
 import org.iaproject.memchat.tools.MemoryTools;
 import org.iaproject.memchat.tools.MemoryToolsImpl;
+import org.iaproject.memchat.tools.UserInteractionTools;
 import picocli.CommandLine;
 
 import java.util.List;
@@ -20,7 +21,7 @@ public class Main {
         commandLine.parseArgs(args);
         OpenAICompatibleClient client = new OpenAICompatibleClient(memchatArg.baseUrl, memchatArg.model, memchatArg.apiKey);
         MemoryTools memoryTools = new MemoryToolsImpl();
-        new AgentRunner(memchatArg.maxSteps, client,memoryTools)
+        new AgentRunner(memchatArg.maxSteps, client,memoryTools, new UserInteractionTools())
                 .run(memchatArg.instruction);
     }
 

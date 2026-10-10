@@ -17,43 +17,49 @@ public class ToolParser {
     ) {
     }
 
-    public static List<ToolDescription> parse(List<Object> tools) {
+    public record ToolRegister(ToolDescription toolDescription, Method method, Object instance) {
+    }
+
+    public static List<ToolRegister> parse(List<Object> tools) {
         return tools.stream()
                 .flatMap(ToolParser::extract).toList();
     }
 
-    private static Stream<ToolDescription> extract(Object tool) {
+    private static Stream<ToolRegister> extract(Object tool) {
         Objects.requireNonNull(tool);
 
-        return Arrays.stream(tool.getClass().getMethods())
-                .filter(m -> m.isAnnotationPresent(Tool.class))
-                .map(m -> {
-                    Map<String, ParameterDescription> params =
-                            Arrays.stream(m.getParameters())
-                                    .collect(Collectors.toMap(
-                                            Parameter::getName,
-                                            p -> {
-                                                Param annotation =
-                                                        p.getAnnotation(Param.class);
+        List<ToolRegister> toolRegisters = new ArrayList<>();
 
-                                                return new ParameterDescription(
-                                                        jsonType(p.getType()),
-                                                        annotation == null
-                                                                ? ""
-                                                                : annotation.description(),
-                                                        true
-                                                );
-                                            },
-                                            (a, b) -> a,
-                                            LinkedHashMap::new
-                                    ));
+        for (Method m : tool.getClass().getMethods()) {
+            if (!m.isAnnotationPresent(Tool.class)) {
+                continue;
+            }
 
-                    return new ToolDescription(
+            Map<String, ParameterDescription> params = new LinkedHashMap<>();
+            for (Parameter p : m.getParameters()) {
+                Param annotation = p.getAnnotation(Param.class);
+
+                params.put(
+                        p.getName(),
+                        new ParameterDescription(
+                                jsonType(p.getType()),
+                                annotation == null ? "" : annotation.description(),
+                                true
+                        )
+                );
+            }
+
+            toolRegisters.add(new ToolRegister(
+                    new ToolDescription(
                             m.getName(),
                             m.getAnnotation(Tool.class).description(),
                             params
-                    );
-                });
+                    ),
+                    m, tool
+            ));
+        }
+
+        return toolRegisters.stream();
     }
 
     private static String jsonType(Class<?> type) {
