@@ -3,86 +3,118 @@ package org.iaproject.memchat.tools;
 import java.util.*;
 import java.util.stream.Collectors;
 
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+
+import java.text.Normalizer;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.logging.Logger;
+
 public class MemoryToolsImpl implements MemoryTools {
-    private Map<String, String> memory = new HashMap<>();
-    private static final Set<String> FRENCH_STOP_WORDS = Set.of(
+
+    private final Map<String, String> memory = new LinkedHashMap<>();
+    private final ObjectMapper mapper = new ObjectMapper();
+    private static final Logger LOGGER = Logger.getLogger(MemoryToolsImpl.class.getName());
+    private static final Path MEMORY_FILE = Path.of("memory.json");
+
+    public MemoryToolsImpl() {
+        try {
+            loadMemory();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static final Set<String> STOP_WORDS = Set.of(
+            // Français
             "le", "la", "les", "un", "une", "des", "du", "de",
-            "d", "l", "au", "aux", "à", "en", "dans", "sur",
+            "d", "l", "au", "aux", "a", "en", "dans", "sur",
             "sous", "par", "pour", "avec", "sans", "chez",
             "et", "ou", "mais", "donc", "car", "ni",
-            "ce", "cet", "cette", "ces", "ça", "cela",
+            "ce", "cet", "cette", "ces", "ca", "cela",
             "je", "tu", "il", "elle", "nous", "vous", "ils",
             "elles", "me", "te", "se", "moi", "toi",
             "mon", "ma", "mes", "ton", "ta", "tes",
             "son", "sa", "ses", "notre", "nos", "votre", "vos",
-            "leur", "leurs",
-            "qui", "que", "quoi", "dont", "où",
-            "est", "sont", "être", "été", "était",
-            "ai", "as", "avons", "avez", "ont",
-            "a", "avait", "avoir",
-            "fait", "faire", "plus", "très",
+            "leur", "leurs", "qui", "que", "quoi", "dont",
+            "est", "sont", "etre", "ete", "etait",
+            "ai", "avons", "avez", "ont",
+            "avait", "avoir", "fait", "faire", "plus", "tres",
             "comme", "aussi", "alors", "encore",
-            "tout", "tous", "toute", "toutes",
-            "ici", "là", "y"
-    );
-    private static final Set<String> ENGLISH_STOP_WORDS = Set.of(
-            "the", "a", "an", "and", "or", "but",
-            "of", "to", "in", "on", "at", "by",
-            "for", "from", "with", "without",
-            "about", "into", "over", "under",
-            "is", "are", "was", "were", "be",
-            "been", "being", "am",
-            "have", "has", "had", "having",
+            "tout", "tous", "toute", "toutes", "ici", "y",
+
+            // Anglais
+            "the", "an", "and", "or", "but", "of", "to",
+            "in", "on", "at", "by", "for", "from", "with",
+            "without", "about", "into", "over", "under",
+            "is", "are", "was", "were", "be", "been", "being",
+            "am", "have", "has", "had", "having",
             "do", "does", "did", "doing",
             "i", "you", "he", "she", "it", "we", "they",
-            "me", "him", "her", "us", "them",
-            "my", "your", "his", "its", "our", "their",
-            "this", "that", "these", "those",
-            "who", "whom", "which", "what",
-            "where", "when", "how",
-            "as", "if", "then", "than",
-            "so", "because", "while", "although",
+            "him", "her", "us", "them", "my", "your",
+            "his", "its", "our", "their", "this", "that",
+            "these", "those", "who", "whom", "which", "what",
+            "where", "when", "how", "as", "if", "then",
+            "than", "so", "because", "while", "although",
             "also", "just", "very", "too",
-            "can", "could", "would", "should",
-            "will", "shall", "may", "might",
-            "must", "some", "any", "all",
-            "each", "every", "other", "more", "most"
+            "can", "could", "would", "should", "will",
+            "shall", "may", "might", "must",
+            "some", "any", "all", "each", "every",
+            "other", "more", "most"
     );
+
+    private record MemoryEntry(String id, String content) {}
+
+    private record SearchResult(
+            String id,
+            String content,
+            long score
+    ) {}
 
     @Override
     @Tool(description = """
             Search persistent memory for information relevant to a query.
-            Use when answering questions that depend on previously
-            stored knowledge or before storing potentially duplicate facts.
-            Returns matching memories with their IDs and content.
+            Use when answering questions about previously stored knowledge
+            or before storing potentially duplicate facts.
+            Returns matching memories with their IDs, content and scores.
             """)
     public String search(
-            @Param(description = "Semantic search query describing the information to retrieve.")
+            @Param(description = "Search query")
             String query,
-
-            @Param(description = "Maximum number of results to return, between 1 and 20.")
+            @Param(description = "Maximum number of results, between 1 and 20")
             int limit
     ) {
-        if (query == null || query.isBlank() || limit <= 0) {
-            return "[]";
+        LOGGER.info("Memory search started (query=" + query + ", limit=" + limit + ")");
+
+        if (query == null || query.isBlank()) {
+            return error("Search query cannot be empty");
         }
 
-        Set<String> keywords = Arrays.stream(query.toLowerCase(Locale.ROOT)
-                        .split("\\W+"))
-                .filter(word -> !word.isBlank())
-                .filter(word -> !ENGLISH_STOP_WORDS.contains(word) && !FRENCH_STOP_WORDS.contains(word))
-                .collect(Collectors.toSet());
+        if (limit < 1 || limit > 20) {
+            return error("Limit must be between 1 and 20");
+        }
+
+        Set<String> keywords = tokenize(query);
 
         if (keywords.isEmpty()) {
-            return "[]";
+            return json(Map.of(
+                    "success", true,
+                    "count", 0,
+                    "memories", List.of()
+            ));
         }
 
-        return memory.entrySet().stream()
+        List<SearchResult> results = memory.entrySet().stream()
                 .map(entry -> {
-                    String content = entry.getValue().toLowerCase(Locale.ROOT);
+                    Set<String> tokens = tokenize(entry.getValue());
 
                     long score = keywords.stream()
-                            .filter(content::contains)
+                            .filter(tokens::contains)
                             .count();
 
                     return new SearchResult(
@@ -92,96 +124,247 @@ public class MemoryToolsImpl implements MemoryTools {
                     );
                 })
                 .filter(result -> result.score() > 0)
-                .sorted(Comparator.comparingLong(SearchResult::score).reversed())
+                .sorted(
+                        Comparator.comparingLong(SearchResult::score)
+                                .reversed()
+                )
                 .limit(limit)
-                .map(result -> """
-                        ID: %s
-                        Content: %s
-                        Score: %d
-                        """.formatted(
-                        result.id(),
-                        result.content(),
-                        result.score()
-                ))
-                .collect(Collectors.joining("\n"));
+                .toList();
+
+        LOGGER.info("Memory search completed (results=" + results.size() + ")");
+
+        return json(Map.of(
+                "success", true,
+                "count", results.size(),
+                "memories", results
+        ));
     }
 
-    private record SearchResult(
-            String id,
-            String content,
-            long score
-    ) {
-    }
-
+    @Override
     @Tool(description = """
-            Store new, durable, and reusable information in persistent memory.
-            Use only when the information is relevant and worth remembering.
+            Store new, durable, reusable information in memory.
             Search first to avoid duplicates.
-            Do not store unsupported assumptions as verified facts.
-            Returns the ID of the newly created memory.
+            Returns the ID of the created memory.
             """)
     public String store(
-            @Param(description = "Clear, self-contained knowledge to persist for future use.")
+            @Param(description = "Knowledge to persist")
             String content
     ) {
-        return "";
+        LOGGER.info("Memory store started (contentLength="
+                + (content == null ? 0 : content.length()) + ")");
+
+        if (content == null || content.isBlank()) {
+            return error("Memory content cannot be empty");
+        }
+
+        String id = UUID.randomUUID().toString();
+        String normalizedContent = content.trim();
+
+        memory.put(id, normalizedContent);
+        saveMemory();
+        LOGGER.info("Memory stored (id=" + id + ")");
+
+        return json(Map.of(
+                "success", true,
+                "id", id,
+                "content", normalizedContent
+        ));
     }
 
+    @Override
     @Tool(description = """
-            Update an existing memory identified by its ID.
-            Use when new information corrects, extends, or supersedes
-            previously stored knowledge.
-            Preserve important details and avoid unsupported changes.
-            Returns the updated memory or an error.
+            Update an existing memory by its ID.
+            Preserve important information when replacing content.
+            Returns the updated memory.
             """)
     public String update(
-            @Param(description = "Unique ID of the existing memory to update.")
+            @Param(description = "Existing memory ID")
             String id,
-
-            @Param(description = "Complete replacement content, including all facts that must be preserved.")
+            @Param(description = "Complete replacement content")
             String content
     ) {
-        return "";
+        LOGGER.info("Memory update started (id=" + id + ")");
+
+        if (id == null || id.isBlank()) {
+            return error("Memory ID is required");
+        }
+
+        if (content == null || content.isBlank()) {
+            return error("Memory content cannot be empty");
+        }
+
+        if (!memory.containsKey(id)) {
+            return notFound(id);
+        }
+
+        String normalizedContent = content.trim();
+        memory.put(id, normalizedContent);
+        saveMemory();
+        LOGGER.info("Memory updated (id=" + id + ")");
+
+        return json(Map.of(
+                "success", true,
+                "id", id,
+                "content", normalizedContent
+        ));
     }
 
+    @Override
     @Tool(description = """
-            Delete a memory identified by its ID.
-            Use when the user explicitly requests deletion or when
-            the memory is confirmed to be invalid.
-            Never delete a memory based only on uncertainty.
-            Returns the deletion status.
+            Delete a memory by its ID.
+            Use only when deletion is explicitly requested
+            or the memory is confirmed invalid.
             """)
     public String delete(
-            @Param(description = "Unique ID of the memory to permanently delete.")
+            @Param(description = "Memory ID to delete")
             String id
     ) {
-        return "";
+        LOGGER.info("Memory delete started (id=" + id + ")");
+
+        if (id == null || id.isBlank()) {
+            return error("Memory ID is required");
+        }
+
+        String removed = memory.remove(id);
+
+        if (removed == null) {
+            return notFound(id);
+        }
+
+        saveMemory();
+        LOGGER.info("Memory deleted (id=" + id + ")");
+
+        return json(Map.of(
+                "success", true,
+                "id", id,
+                "deleted", true
+        ));
     }
 
+    @Override
     @Tool(description = """
-            Retrieve a specific memory by its unique ID.
-            Use when the exact memory must be inspected before
-            updating, deleting, or referencing it.
-            Returns the memory ID and content, or a not-found error.
+            Retrieve an existing memory by its unique ID.
+            Returns the memory ID and content.
             """)
     public String get(
-            @Param(description = "Unique ID of the memory to retrieve.")
+            @Param(description = "Memory ID to retrieve")
             String id
     ) {
-        return "";
+        LOGGER.info("Memory get started (id=" + id + ")");
+
+        if (id == null || id.isBlank()) {
+            return error("Memory ID is required");
+        }
+
+        String content = memory.get(id);
+
+        if (content == null) {
+            return notFound(id);
+        }
+
+        LOGGER.info("Memory retrieved (id=" + id + ")");
+
+        return json(Map.of(
+                "success", true,
+                "id", id,
+                "content", content
+        ));
     }
 
+    @Override
     @Tool(description = """
-            List existing memories up to the specified limit.
-            Use to inspect available knowledge when no specific
-            search query is known.
-            Returns memory IDs and their content.
-            Prefer search when looking for specific information.
+            List stored memories up to the specified limit.
+            Use when no specific search query is known.
             """)
     public String list(
-            @Param(description = "Maximum number of memories to return, between 1 and 20.")
+            @Param(description = "Maximum number of memories, between 1 and 20")
             int limit
     ) {
-        return "";
+        LOGGER.info("Memory list started (limit=" + limit + ")");
+
+        if (limit < 1 || limit > 20) {
+            return error("Limit must be between 1 and 20");
+        }
+
+        List<MemoryEntry> entries = memory.entrySet().stream()
+                .limit(limit)
+                .map(entry -> new MemoryEntry(
+                        entry.getKey(),
+                        entry.getValue()
+                ))
+                .toList();
+
+        LOGGER.info("Memory list completed (results=" + entries.size() + ")");
+
+        return json(Map.of(
+                "success", true,
+                "count", entries.size(),
+                "memories", entries
+        ));
+    }
+
+    private Set<String> tokenize(String text) {
+        String normalized = Normalizer.normalize(
+                text.toLowerCase(Locale.ROOT),
+                Normalizer.Form.NFD
+        ).replaceAll("\\p{M}+", "");
+
+        return Arrays.stream(normalized.split("[^\\p{L}\\p{N}]+"))
+                .filter(word -> !word.isBlank())
+                .filter(word -> !STOP_WORDS.contains(word))
+                .collect(Collectors.toSet());
+    }
+
+    private String error(String message) {
+        return json(Map.of(
+                "success", false,
+                "error", message
+        ));
+    }
+
+    private String notFound(String id) {
+        return json(Map.of(
+                "success", false,
+                "error", "Memory not found",
+                "id", id
+        ));
+    }
+
+    private String json(Object value) {
+        try {
+            return mapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException(
+                    "Memory serialization failed", e
+            );
+        }
+    }
+
+    private void loadMemory() throws IOException {
+        if (!Files.exists(MEMORY_FILE)) {
+            LOGGER.info("Memory file not found, starting with empty memory");
+            Files.createFile(MEMORY_FILE);
+            return;
+        }
+
+        try {
+            memory.putAll(mapper.readValue(
+                    MEMORY_FILE.toFile(),
+                    new TypeReference<LinkedHashMap<String, String>>() {}
+            ));
+            LOGGER.info("Memory loaded (count=" + memory.size() + ")");
+        } catch (IOException | RuntimeException e) {
+            LOGGER.severe("Unable to load memory file: " + e.getMessage());
+        }
+    }
+
+    private void saveMemory() {
+        try {
+            mapper.writerWithDefaultPrettyPrinter()
+                    .writeValue(MEMORY_FILE.toFile(), memory);
+            LOGGER.info("Memory saved (count=" + memory.size() + ")");
+        } catch (IOException e) {
+            LOGGER.severe("Unable to save memory file: " + e.getMessage());
+        }
     }
 }

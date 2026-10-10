@@ -17,7 +17,7 @@ public class MemchatArg implements Runnable {
     public String model;
     @Option(names = "--instruction", required = false)
     public String instruction;
-    @Option(names = "--max-steps", defaultValue = "1")
+    @Option(names = "--max-steps", defaultValue = "50")
     public int maxSteps;
     @Option(names = "--raw-history-n", defaultValue = "1")
     public int rawHistoryN;

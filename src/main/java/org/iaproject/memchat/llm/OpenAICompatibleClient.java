@@ -1,8 +1,10 @@
 package org.iaproject.memchat.llm;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.iaproject.memchat.tools.ToolParser;
 
 import java.io.IOException;
 import java.net.URI;
@@ -10,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -41,11 +44,10 @@ public class OpenAICompatibleClient implements LLmApiClient {
     }
 
     @Override
-    public ChatResponse complete(List<ChatMessage> chatMessages) {
+    public ChatResponse complete(List<ChatMessage> chatMessages, List<ToolParser.ToolDescription> tools) {
         Map<String, String> headers = apiKey == null || apiKey.isBlank() ? Map.of("Content-Type", "application/json")
                 : Map.of("Content-Type", "application/json", "Authorization", "Bearer " + apiKey);
-        ObjectNode body = createApiBodyRequest(chatMessages);
-        System.out.println(body.toPrettyString());
+        ObjectNode body = createApiBodyRequest(chatMessages,tools);
         HttpRequest.Builder request = HttpRequest.newBuilder()
                 .uri(URI.create(this.baseUrl + "/chat/completions"))
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
@@ -55,12 +57,30 @@ public class OpenAICompatibleClient implements LLmApiClient {
             if (!isSuccessfull(response)) {
                 throw new RuntimeException("Erreur vLLM [" + response.statusCode() + "] : " + response.body());
             }
-            return new ChatResponse(mapper.readTree(response.body())
-                    .path("choices")
-                    .get(0)
-                    .path("message")
-                    .path("content")
-                    .asText());
+            JsonNode root = mapper.readTree(response.body());
+            JsonNode message = root.path("choices")
+                    .path(0)
+                    .path("message");
+
+            String content = message.path("content").asText("");
+
+            List<ToolCall> toolCalls = new ArrayList<>();
+
+            JsonNode callsNode = message.path("tool_calls");
+
+            if (callsNode.isArray()) {
+                for (JsonNode call : callsNode) {
+                    JsonNode function = call.path("function");
+
+                    toolCalls.add(new ToolCall(
+                            call.path("id").asText(),
+                            function.path("name").asText(),
+                            function.path("arguments").asText()
+                    ));
+                }
+            }
+
+            return new ChatResponse(content, toolCalls);
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -70,7 +90,7 @@ public class OpenAICompatibleClient implements LLmApiClient {
         return (response.statusCode() >= 200 && response.statusCode() < 300);
     }
 
-    private ObjectNode createApiBodyRequest(List<ChatMessage> chatMessages) {
+    private ObjectNode createApiBodyRequest(List<ChatMessage> chatMessages, List<ToolParser.ToolDescription> tools) {
         ObjectNode request = this.mapper.createObjectNode();
         request.put("model", this.model);
         request.put("temperature", this.temperature);
@@ -80,6 +100,36 @@ public class OpenAICompatibleClient implements LLmApiClient {
             msgBody.put("role", chatMessage.role().toString());
             msgBody.put("content", chatMessage.content());
         }
+        ArrayNode result = mapper.createArrayNode();
+
+        for (var tool : tools) {
+            ObjectNode toolNode = result.addObject();
+            toolNode.put("type", "function");
+
+            ObjectNode function = toolNode.putObject("function");
+            function.put("name", tool.name());
+            function.put("description", tool.description());
+
+            ObjectNode parameters = function.putObject("parameters");
+            parameters.put("type", "object");
+
+            ObjectNode properties = parameters.putObject("properties");
+            ArrayNode required = parameters.putArray("required");
+
+            for (var entry : tool.params().entrySet()) {
+                String name = entry.getKey();
+                var param = entry.getValue();
+
+                ObjectNode property = properties.putObject(name);
+                property.put("type", param.type());
+                property.put("description", param.description());
+
+                if (param.required()) {
+                    required.add(name);
+                }
+            }
+        }
+        request.set("tools", result);
         return request;
     }
 }

@@ -1,5 +1,6 @@
 package org.iaproject.memchat.action;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.iaproject.memchat.tools.ToolParser.*;
@@ -21,18 +22,41 @@ public class ActionExecutor {
                 .collect(Collectors.toMap(t -> t.toolDescription().name().toUpperCase(), Function.identity()));
     }
 
+    public ToolResult execute(String name, String arguments) {
+        if (name == null || name.isBlank()) {
+            return ToolResult.failure("UNKNOWN", "Missing tool name");
+        }
+
+        try {
+            JsonNode args = mapper.readTree(
+                    arguments == null || arguments.isBlank()
+                            ? "{}"
+                            : arguments
+            );
+
+            if (!args.isObject()) {
+                return ToolResult.failure(name, "Arguments must be a JSON object");
+            }
+
+            return execute(name, args);
+
+        } catch (JsonProcessingException e) {
+            return ToolResult.failure(name, "Invalid JSON arguments: " + e.getOriginalMessage());
+        }
+    }
+
+    public ToolResult execute(String name, JsonNode arguments) {
+        return execute(new ActionParser.Action("", name, arguments));
+    }
 
     public ToolResult execute(ActionParser.Action action) {
 
 
         if (action == null || action.name() == null) {
-            return ToolResult.failure(
-                    "unknown",
-                    "No valid tool call found"
-            );
+            return null;
         }
 
-        String toolName = action.name().toLowerCase(Locale.ROOT);
+        String toolName = action.name().toUpperCase();
         ToolRegister register = cachedRegister.get(toolName);
 
         if (register == null) {

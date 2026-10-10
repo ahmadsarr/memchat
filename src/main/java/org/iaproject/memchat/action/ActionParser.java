@@ -16,6 +16,8 @@ public class ActionParser {
     public Action parse(String response) {
         String thought = extractThought(response);
         JsonNode jsonNode = extractToolCalls(response);
+        if (jsonNode == null)
+            return null;
         if (jsonNode.isNull())
             throw new RuntimeException("Invalid action JSON or argument type.Generate the tool call again using valid JSON.");
         String name = jsonNode.path("name").asText();
@@ -23,17 +25,23 @@ public class ActionParser {
 
         return new Action(thought, name, paramsNode);
     }
+    public boolean hasToolCall(String response) {
+        return response != null && response.contains("<tool_call>");
+    }
 
     private static final String OPEN_TAG = "<tool_call>";
     private static final String CLOSE_TAG = "</tool_call>";
 
     private JsonNode extractToolCalls(String response) {
         int searchFrom = 0;
-
+        if (response == null || response.isBlank()) {
+            return null;
+        }
         while (true) {
             int tag = response.indexOf(OPEN_TAG, searchFrom);
+
             if (tag < 0) {
-                break;
+                return null;
             }
 
             int start = tag + OPEN_TAG.length();
