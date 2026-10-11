@@ -1,0 +1,113 @@
+[ {
+  "id" : "3eaf7c5b-ba24-465f-b1f8-914edf056809",
+  "message" : {
+    "role" : "USER",
+    "content" : "Bonjour",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "6f1bfdb4-b58e-43b4-b797-7c73cd3c17b0",
+  "message" : {
+    "role" : "ASSISTANT",
+    "content" : "Bonjour ! Comment puis-je vous aider aujourd'hui ?",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "5643d3c1-9886-4082-b36a-20f8e9705018",
+  "message" : {
+    "role" : "USER",
+    "content" : "Quel est le projet Atlas et quelles sont ses décisions techniques actuelles ?",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "b48bdbb1-2069-4343-8622-d637dcf66305",
+  "message" : {
+    "role" : "TOOL",
+    "content" : "{\"action\":\"ARCHIVALSEARCH\",\"success\":true,\"result\":\"{\\\"success\\\":true,\\\"memories\\\":[{\\\"id\\\":\\\"id-2\\\",\\\"content\\\":\\\"Projet : agent IA local avec Ollama.\\\",\\\"score\\\":1},{\\\"id\\\":\\\"d6ec8977-81fa-4369-bcc7-c0a022492cff\\\",\\\"content\\\":\\\"Atlas Kafka configuration: 12 partitions, 6 consumers in same group.\\\",\\\"score\\\":1},{\\\"id\\\":\\\"305a5ee0-5ff2-40ff-a2b1-fbcc72e0a6f5\\\",\\\"content\\\":\\\"Atlas Java preferences: Java 21, avoid Lombok.\\\",\\\"score\\\":1},{\\\"id\\\":\\\"6d52d7c7-8365-4154-ad9a-341cbffb24b4\\\",\\\"content\\\":\\\"Atlas performance requirement: handle 10,000 events per second.\\\",\\\"score\\\":1},{\\\"id\\\":\\\"6fc95a19-f18d-4d4a-a565-a58e044c89fc\\\",\\\"content\\\":\\\"Atlas database: Cassandra (replaced PostgreSQL).\\\",\\\"score\\\":1}],\\\"count\\\":5}\",\"error\":null,\"isFinish\":false}",
+    "toolCalls" : null,
+    "toolCallId" : "call_i2d0xqbj"
+  }
+}, {
+  "id" : "45658bef-14c8-4992-a3d0-37d9782e4245",
+  "message" : {
+    "role" : "ASSISTANT",
+    "content" : "Le projet Atlas est un projet technique dont voici les décisions techniques actuelles :\n\n**Configuration Kafka :**\n- 12 partitions\n- 6 consommateurs dans le même groupe\n\n**Préférences Java :**\n- Utilisation de Java 21\n- Éviter l'utilisation de Lombok\n\n**Exigences de performance :**\n- Gérer 10 000 événements par seconde\n\n**Base de données :**\n- Cassandra (remplacant PostgreSQL)\n\nSouhaitez-vous des détails supplémentaires sur l'un de ces aspects ou avez-vous d'autres questions ?",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "ba72c476-d818-4ef3-9b2d-a0994817dcb3",
+  "message" : {
+    "role" : "USER",
+    "content" : "Combien de consommateurs Kafka avais-je configurés initialement pour Atlas ?",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "a481d88a-3f2e-49f1-9057-b2243d9884d1",
+  "message" : {
+    "role" : "TOOL",
+    "content" : "{\"action\":\"RECALLSEARCH\",\"success\":true,\"result\":\"{\\\"success\\\":true,\\\"memories\\\":[{\\\"id\\\":\\\"45658bef-14c8-4992-a3d0-37d9782e4245\\\",\\\"content\\\":{\\\"role\\\":\\\"ASSISTANT\\\",\\\"content\\\":\\\"Le projet Atlas est un projet technique dont voici les décisions techniques actuelles :\\\\n\\\\n**Configuration Kafka :**\\\\n- 12 partitions\\\\n- 6 consommateurs dans le même groupe\\\\n\\\\n**Préférences Java :**\\\\n- Utilisation de Java 21\\\\n- Éviter l'utilisation de Lombok\\\\n\\\\n**Exigences de performance :**\\\\n- Gérer 10 000 événements par seconde\\\\n\\\\n**Base de données :**\\\\n- Cassandra (remplacant PostgreSQL)\\\\n\\\\nSouhaitez-vous des détails supplémentaires sur l'un de ces aspects ou avez-vous d'autres questions ?\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":null},\\\"score\\\":4},{\\\"id\\\":\\\"b48bdbb1-2069-4343-8622-d637dcf66305\\\",\\\"content\\\":{\\\"role\\\":\\\"TOOL\\\",\\\"content\\\":\\\"{\\\\\\\"action\\\\\\\":\\\\\\\"ARCHIVALSEARCH\\\\\\\",\\\\\\\"success\\\\\\\":true,\\\\\\\"result\\\\\\\":\\\\\\\"{\\\\\\\\\\\\\\\"success\\\\\\\\\\\\\\\":true,\\\\\\\\\\\\\\\"memories\\\\\\\\\\\\\\\":[{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"id-2\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Projet : agent IA local avec Ollama.\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"d6ec8977-81fa-4369-bcc7-c0a022492cff\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Atlas Kafka configuration: 12 partitions, 6 consumers in same group.\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"305a5ee0-5ff2-40ff-a2b1-fbcc72e0a6f5\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Atlas Java preferences: Java 21, avoid Lombok.\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"6d52d7c7-8365-4154-ad9a-341cbffb24b4\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Atlas performance requirement: handle 10,000 events per second.\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"6fc95a19-f18d-4d4a-a565-a58e044c89fc\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Atlas database: Cassandra (replaced PostgreSQL).\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1}],\\\\\\\\\\\\\\\"count\\\\\\\\\\\\\\\":5}\\\\\\\",\\\\\\\"error\\\\\\\":null,\\\\\\\"isFinish\\\\\\\":false}\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":\\\"call_i2d0xqbj\\\"},\\\"score\\\":3},{\\\"id\\\":\\\"ba72c476-d818-4ef3-9b2d-a0994817dcb3\\\",\\\"content\\\":{\\\"role\\\":\\\"USER\\\",\\\"content\\\":\\\"Combien de consommateurs Kafka avais-je configurés initialement pour Atlas ?\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":null},\\\"score\\\":3},{\\\"id\\\":\\\"5643d3c1-9886-4082-b36a-20f8e9705018\\\",\\\"content\\\":{\\\"role\\\":\\\"USER\\\",\\\"content\\\":\\\"Quel est le projet Atlas et quelles sont ses décisions techniques actuelles ?\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":null},\\\"score\\\":1}],\\\"count\\\":4}\",\"error\":null,\"isFinish\":false}",
+    "toolCalls" : null,
+    "toolCallId" : "call_oe9v68ly"
+  }
+}, {
+  "id" : "fa988297-12c2-4c63-a958-361659a5bd95",
+  "message" : {
+    "role" : "ASSISTANT",
+    "content" : "D'après les informations disponibles, je connais la configuration actuelle d'Atlas : 6 consommateurs Kafka dans le même groupe avec 12 partitions.\n\nCependant, je n'ai pas d'information sur le nombre de consommateurs configurés initialement pour Atlas. Avez-vous cette information en mémoire ?",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "00cadea9-e9a9-4b4d-9697-391d499439c5",
+  "message" : {
+    "role" : "USER",
+    "content" : "Dans nos anciennes conversion je l'avais mentionné",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "9f2dca51-08ac-4307-8adb-5fd0d2d239d1",
+  "message" : {
+    "role" : "TOOL",
+    "content" : "{\"action\":\"RECALLSEARCH\",\"success\":true,\"result\":\"{\\\"success\\\":true,\\\"memories\\\":[{\\\"id\\\":\\\"fa988297-12c2-4c63-a958-361659a5bd95\\\",\\\"content\\\":{\\\"role\\\":\\\"ASSISTANT\\\",\\\"content\\\":\\\"D'après les informations disponibles, je connais la configuration actuelle d'Atlas : 6 consommateurs Kafka dans le même groupe avec 12 partitions.\\\\n\\\\nCependant, je n'ai pas d'information sur le nombre de consommateurs configurés initialement pour Atlas. Avez-vous cette information en mémoire ?\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":null},\\\"score\\\":4},{\\\"id\\\":\\\"45658bef-14c8-4992-a3d0-37d9782e4245\\\",\\\"content\\\":{\\\"role\\\":\\\"ASSISTANT\\\",\\\"content\\\":\\\"Le projet Atlas est un projet technique dont voici les décisions techniques actuelles :\\\\n\\\\n**Configuration Kafka :**\\\\n- 12 partitions\\\\n- 6 consommateurs dans le même groupe\\\\n\\\\n**Préférences Java :**\\\\n- Utilisation de Java 21\\\\n- Éviter l'utilisation de Lombok\\\\n\\\\n**Exigences de performance :**\\\\n- Gérer 10 000 événements par seconde\\\\n\\\\n**Base de données :**\\\\n- Cassandra (remplacant PostgreSQL)\\\\n\\\\nSouhaitez-vous des détails supplémentaires sur l'un de ces aspects ou avez-vous d'autres questions ?\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":null},\\\"score\\\":3},{\\\"id\\\":\\\"ba72c476-d818-4ef3-9b2d-a0994817dcb3\\\",\\\"content\\\":{\\\"role\\\":\\\"USER\\\",\\\"content\\\":\\\"Combien de consommateurs Kafka avais-je configurés initialement pour Atlas ?\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":null},\\\"score\\\":3},{\\\"id\\\":\\\"a481d88a-3f2e-49f1-9057-b2243d9884d1\\\",\\\"content\\\":{\\\"role\\\":\\\"TOOL\\\",\\\"content\\\":\\\"{\\\\\\\"action\\\\\\\":\\\\\\\"RECALLSEARCH\\\\\\\",\\\\\\\"success\\\\\\\":true,\\\\\\\"result\\\\\\\":\\\\\\\"{\\\\\\\\\\\\\\\"success\\\\\\\\\\\\\\\":true,\\\\\\\\\\\\\\\"memories\\\\\\\\\\\\\\\":[{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"45658bef-14c8-4992-a3d0-37d9782e4245\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":{\\\\\\\\\\\\\\\"role\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"ASSISTANT\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Le projet Atlas est un projet technique dont voici les décisions techniques actuelles :\\\\\\\\\\\\\\\\n\\\\\\\\\\\\\\\\n**Configuration Kafka :**\\\\\\\\\\\\\\\\n- 12 partitions\\\\\\\\\\\\\\\\n- 6 consommateurs dans le même groupe\\\\\\\\\\\\\\\\n\\\\\\\\\\\\\\\\n**Préférences Java :**\\\\\\\\\\\\\\\\n- Utilisation de Java 21\\\\\\\\\\\\\\\\n- Éviter l'utilisation de Lombok\\\\\\\\\\\\\\\\n\\\\\\\\\\\\\\\\n**Exigences de performance :**\\\\\\\\\\\\\\\\n- Gérer 10 000 événements par seconde\\\\\\\\\\\\\\\\n\\\\\\\\\\\\\\\\n**Base de données :**\\\\\\\\\\\\\\\\n- Cassandra (remplacant PostgreSQL)\\\\\\\\\\\\\\\\n\\\\\\\\\\\\\\\\nSouhaitez-vous des détails supplémentaires sur l'un de ces aspects ou avez-vous d'autres questions ?\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"toolCalls\\\\\\\\\\\\\\\":null,\\\\\\\\\\\\\\\"toolCallId\\\\\\\\\\\\\\\":null},\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":4},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"b48bdbb1-2069-4343-8622-d637dcf66305\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":{\\\\\\\\\\\\\\\"role\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"TOOL\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"{\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"action\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"ARCHIVALSEARCH\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"success\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":true,\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"result\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"{\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"success\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":true,\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"memories\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":[{\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"id-2\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Projet : agent IA local avec Ollama.\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"d6ec8977-81fa-4369-bcc7-c0a022492cff\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Atlas Kafka configuration: 12 partitions, 6 consumers in same group.\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"305a5ee0-5ff2-40ff-a2b1-fbcc72e0a6f5\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Atlas Java preferences: Java 21, avoid Lombok.\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"6d52d7c7-8365-4154-ad9a-341cbffb24b4\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Atlas performance requirement: handle 10,000 events per second.\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"6fc95a19-f18d-4d4a-a565-a58e044c89fc\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Atlas database: Cassandra (replaced PostgreSQL).\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":1}],\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"count\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":5}\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"error\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":null,\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"isFinish\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\":false}\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"toolCalls\\\\\\\\\\\\\\\":null,\\\\\\\\\\\\\\\"toolCallId\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"call_i2d0xqbj\\\\\\\\\\\\\\\"},\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":3},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"ba72c476-d818-4ef3-9b2d-a0994817dcb3\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":{\\\\\\\\\\\\\\\"role\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"USER\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Combien de consommateurs Kafka avais-je configurés initialement pour Atlas ?\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"toolCalls\\\\\\\\\\\\\\\":null,\\\\\\\\\\\\\\\"toolCallId\\\\\\\\\\\\\\\":null},\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":3},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"5643d3c1-9886-4082-b36a-20f8e9705018\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":{\\\\\\\\\\\\\\\"role\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"USER\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Quel est le projet Atlas et quelles sont ses décisions techniques actuelles ?\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"toolCalls\\\\\\\\\\\\\\\":null,\\\\\\\\\\\\\\\"toolCallId\\\\\\\\\\\\\\\":null},\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1}],\\\\\\\\\\\\\\\"count\\\\\\\\\\\\\\\":4}\\\\\\\",\\\\\\\"error\\\\\\\":null,\\\\\\\"isFinish\\\\\\\":false}\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":\\\"call_oe9v68ly\\\"},\\\"score\\\":3},{\\\"id\\\":\\\"b48bdbb1-2069-4343-8622-d637dcf66305\\\",\\\"content\\\":{\\\"role\\\":\\\"TOOL\\\",\\\"content\\\":\\\"{\\\\\\\"action\\\\\\\":\\\\\\\"ARCHIVALSEARCH\\\\\\\",\\\\\\\"success\\\\\\\":true,\\\\\\\"result\\\\\\\":\\\\\\\"{\\\\\\\\\\\\\\\"success\\\\\\\\\\\\\\\":true,\\\\\\\\\\\\\\\"memories\\\\\\\\\\\\\\\":[{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"id-2\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Projet : agent IA local avec Ollama.\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"d6ec8977-81fa-4369-bcc7-c0a022492cff\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Atlas Kafka configuration: 12 partitions, 6 consumers in same group.\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"305a5ee0-5ff2-40ff-a2b1-fbcc72e0a6f5\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Atlas Java preferences: Java 21, avoid Lombok.\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"6d52d7c7-8365-4154-ad9a-341cbffb24b4\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Atlas performance requirement: handle 10,000 events per second.\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1},{\\\\\\\\\\\\\\\"id\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"6fc95a19-f18d-4d4a-a565-a58e044c89fc\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"content\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"Atlas database: Cassandra (replaced PostgreSQL).\\\\\\\\\\\\\\\",\\\\\\\\\\\\\\\"score\\\\\\\\\\\\\\\":1}],\\\\\\\\\\\\\\\"count\\\\\\\\\\\\\\\":5}\\\\\\\",\\\\\\\"error\\\\\\\":null,\\\\\\\"isFinish\\\\\\\":false}\\\",\\\"toolCalls\\\":null,\\\"toolCallId\\\":\\\"call_i2d0xqbj\\\"},\\\"score\\\":2}],\\\"count\\\":5}\",\"error\":null,\"isFinish\":false}",
+    "toolCalls" : null,
+    "toolCallId" : "call_7smogphl"
+  }
+}, {
+  "id" : "462895de-94e9-4f7e-a54c-8c5136eac6d7",
+  "message" : {
+    "role" : "ASSISTANT",
+    "content" : "Je n'ai pas trouvé d'information sur le nombre initial de consommateurs Kafka configurés pour Atlas dans notre conversation récente. Pourriez-vous me rappeler combien vous aviez configuré initialement ? Cela m'aiderait à mettre à jour ma mémoire avec cette information importante.",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "aa66bbf3-1ef6-467f-a91c-e7303c05492e",
+  "message" : {
+    "role" : "USER",
+    "content" : "Dans les archives",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+}, {
+  "id" : "b0586f1c-0228-4708-ada2-3a9006702074",
+  "message" : {
+    "role" : "TOOL",
+    "content" : "{\"action\":\"ARCHIVALSEARCH\",\"success\":true,\"result\":\"{\\\"success\\\":true,\\\"memories\\\":[{\\\"id\\\":\\\"d6ec8977-81fa-4369-bcc7-c0a022492cff\\\",\\\"content\\\":\\\"Atlas Kafka configuration: 12 partitions, 6 consumers in same group.\\\",\\\"score\\\":4},{\\\"id\\\":\\\"305a5ee0-5ff2-40ff-a2b1-fbcc72e0a6f5\\\",\\\"content\\\":\\\"Atlas Java preferences: Java 21, avoid Lombok.\\\",\\\"score\\\":1},{\\\"id\\\":\\\"6d52d7c7-8365-4154-ad9a-341cbffb24b4\\\",\\\"content\\\":\\\"Atlas performance requirement: handle 10,000 events per second.\\\",\\\"score\\\":1},{\\\"id\\\":\\\"6fc95a19-f18d-4d4a-a565-a58e044c89fc\\\",\\\"content\\\":\\\"Atlas database: Cassandra (replaced PostgreSQL).\\\",\\\"score\\\":1}],\\\"count\\\":4}\",\"error\":null,\"isFinish\":false}",
+    "toolCalls" : null,
+    "toolCallId" : "call_tg3ct1r0"
+  }
+}, {
+  "id" : "367b3bd1-2eba-4327-951a-02a16e45873a",
+  "message" : {
+    "role" : "ASSISTANT",
+    "content" : "Je n'ai pas trouvé d'information sur le nombre initial de consommateurs Kafka configurés pour Atlas dans les archives persistantes. Les résultats montrent uniquement la configuration actuelle (6 consommateurs).\n\nPourriez-vous me rappeler combien vous aviez configuré initialement ? Cela m'aiderait à mettre à jour ma mémoire avec cette information historique importante sur l'évolution du projet Atlas.",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+} ]

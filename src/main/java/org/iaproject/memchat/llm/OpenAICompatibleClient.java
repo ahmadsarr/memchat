@@ -14,6 +14,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class OpenAICompatibleClient implements LLmApiClient {
@@ -97,8 +98,28 @@ public class OpenAICompatibleClient implements LLmApiClient {
         ArrayNode messagesBody = request.putArray("messages");
         for (ChatMessage chatMessage : chatMessages) {
             ObjectNode msgBody = messagesBody.addObject();
-            msgBody.put("role", chatMessage.role().toString());
-            msgBody.put("content", chatMessage.content());
+            msgBody.put("role", chatMessage.role().name().toLowerCase(Locale.ROOT));
+            if (chatMessage.content() == null) {
+                msgBody.putNull("content");
+            } else {
+                msgBody.put("content", chatMessage.content());
+            }
+
+            if (chatMessage.toolCallId() != null) {
+                msgBody.put("tool_call_id", chatMessage.toolCallId());
+            }
+
+            if (chatMessage.toolCalls() != null && !chatMessage.toolCalls().isEmpty()) {
+                ArrayNode toolCalls = msgBody.putArray("tool_calls");
+                for (ToolCall toolCall : chatMessage.toolCalls()) {
+                    ObjectNode call = toolCalls.addObject();
+                    call.put("id", toolCall.id());
+                    call.put("type", "function");
+                    ObjectNode function = call.putObject("function");
+                    function.put("name", toolCall.name());
+                    function.put("arguments", toolCall.arguments());
+                }
+            }
         }
         ArrayNode result = mapper.createArrayNode();
 

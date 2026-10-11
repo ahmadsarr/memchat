@@ -7,6 +7,8 @@ import org.iaproject.memchat.action.ActionParser;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.llm.LLmApiClient.*;
 import org.iaproject.memchat.llm.PromptBuilder;
+import org.iaproject.memchat.memory.MemoryFullException;
+import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.tools.ToolParser;
 import org.iaproject.memchat.tools.ToolResult;
 
@@ -18,43 +20,52 @@ public class AgentLoop {
     private final LLmApiClient client;
     private final ObjectMapper mapper;
     private final ActionExecutor actionExecutor;
-    private final ActionParser actionParser;
-    private final  List<ChatMessage> messages;
+    private final MemoryManager memoryManager;
 
-    public AgentLoop(int maxStep, LLmApiClient client, Object... tools) throws JsonProcessingException {
+    public AgentLoop(int maxStep, LLmApiClient client, Object... tools) {
+        this(maxStep, client, null, tools);
+    }
+
+    public AgentLoop(
+            int maxStep,
+            LLmApiClient client,
+            MemoryManager memoryManager,
+            Object... tools
+    ) {
         this.maxStep = maxStep;
         this.client = client;
+        this.memoryManager = memoryManager;
         this.mapper = new ObjectMapper();
         this.actionExecutor = new ActionExecutor(ToolParser.parse(List.of(tools)));
-        this.actionParser = new ActionParser();
-        this.messages = new ArrayList<>();
-        messages.add(ChatMessage.system(
-                PromptBuilder.SYSTEM
-        ));
     }
 
     public void run(String instruction)
             throws InterruptedException, JsonProcessingException {
 
-        messages.add(ChatMessage.user(instruction));
-
+        addMessage(ChatMessage.user(instruction));
+        List<ChatMessage> context;
         for (int i = 0; i < maxStep; i++) {
 
+            try {
+                context = memoryManager.context();
+            } catch (MemoryFullException e) {
+                memoryManager.compact();
+                context = memoryManager.context();
+            }
             ChatResponse response = client.complete(
-                    List.copyOf(messages),
+                    context,
                     actionExecutor.getToolsDescriptions()
             );
 
             if (response.toolCalls() == null
                     || response.toolCalls().isEmpty()) {
-
-                messages.add(ChatMessage.assistant(response.content()));
+                addMessage(ChatMessage.assistant(response.content()));
 
                 System.out.println("Agent: " + response.content());
                 return;
             }
 
-            messages.add(ChatMessage.assistant(
+            addMessage(ChatMessage.assistant(
                     response.content(),
                     response.toolCalls()
             ));
@@ -68,16 +79,23 @@ public class AgentLoop {
                         call.arguments()
                 );
 
-                messages.add(ChatMessage.tool(
+                addMessage(ChatMessage.tool(
                         call.id(),
                         mapper.writeValueAsString(result)
                 ));
             }
 
+
             Thread.sleep(100);
         }
 
         System.out.println("Maximum steps reached");
+    }
+
+    private void addMessage(ChatMessage message) {
+        if (memoryManager != null) {
+            memoryManager.addMessage(message);
+        }
     }
 
 }
