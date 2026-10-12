@@ -3,8 +3,10 @@ package org.iaproject.memchat.memory;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.llm.LLmApiClient.*;
 import org.iaproject.memchat.llm.PromptBuilder;
+import org.iaproject.memchat.memory.impl.WorkingMemoryImpl;
 import org.iaproject.memchat.memory.strategy.CompactStrategy;
 import org.iaproject.memchat.memory.strategy.ContextControlStrategy;
+import org.iaproject.memchat.memory.strategy.ContextControlStrategyImpl;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +19,7 @@ public class MemoryManager {
     private final ContextControlStrategy contextControlStrategy;
     private final CompactStrategy compactStrategy;
 
-    public MemoryManager(
+    private MemoryManager(
             WorkingMemory workingMemory,
             RecallStorage recallStorage,
             ArchivalMemory archivalStorage,
@@ -29,6 +31,14 @@ public class MemoryManager {
         this.archivalStorage = archivalStorage;
         this.contextControlStrategy = contextControlStrategy;
         this.compactStrategy = compactStrategy;
+    }
+
+    public MemoryManager(
+            RecallStorage recallStorage,
+            ArchivalMemory archivalStorage,
+            CompactStrategy compactStrategy
+    ) {
+        this(new WorkingMemoryImpl(), recallStorage, archivalStorage, new ContextControlStrategyImpl(), compactStrategy);
     }
 
 
@@ -148,13 +158,13 @@ public class MemoryManager {
 
     private static final ChatMessage warningMessage = ChatMessage.system("""
             MEMORY PRESSURE WARNING
-
+            
             The conversation context is approaching its limit.
-
+            
             Review the current conversation.
             If important reusable information may be lost,
             preserve it using archivalStore or coreAppend.
-
+            
             Do not store duplicate or temporary information.
             """);
 }

@@ -68,11 +68,6 @@ public class ActionExecutor {
 
         try {
             Object result = call(register, action.args());
-            if (result instanceof UserInteractionTools.UserInteractionResult(
-                    UserInteractionTools.InteractionType type, String message
-            ) && type == UserInteractionTools.InteractionType.FINISH) {
-                return ToolResult.stop(toolName);
-            }
             return ToolResult.success(
                     toolName,
                     result

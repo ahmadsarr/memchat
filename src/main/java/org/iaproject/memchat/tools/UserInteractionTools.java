@@ -1,18 +1,14 @@
 package org.iaproject.memchat.tools;
 
-import java.util.Objects;
-import java.util.Scanner;
+import org.iaproject.memchat.UserInteraction;
 
+import java.util.Objects;
 public class UserInteractionTools {
 
-    private final Scanner scanner;
+    private final UserInteraction interaction;
 
-    public UserInteractionTools(Scanner scanner) {
-        this.scanner = Objects.requireNonNull(scanner);
-    }
-
-    public UserInteractionTools() {
-        this.scanner = new Scanner(System.in);
+    public UserInteractionTools(UserInteraction interaction) {
+        this.interaction = Objects.requireNonNull(interaction);
     }
 
     @Tool(description = """
@@ -23,14 +19,13 @@ public class UserInteractionTools {
     public UserInteractionResult askUser(
             @Param(description = "Clear question to ask the user")
             String question
-    ) {
-        System.out.println();
-        System.out.println("Agent: " + question);
-        System.out.print("You: ");
+    ) throws InterruptedException {
+
+        String answer = interaction.ask(question);
 
         return new UserInteractionResult(
                 InteractionType.ASK_USER,
-                scanner.nextLine()
+                answer
         );
     }
 
@@ -44,8 +39,8 @@ public class UserInteractionTools {
             @Param(description = "Final response to the user")
             String answer
     ) {
-        System.out.println();
-        System.out.println("Agent: " + answer);
+        interaction.display(answer);
+
         return new UserInteractionResult(
                 InteractionType.FINISH,
                 answer
@@ -60,6 +55,5 @@ public class UserInteractionTools {
     public record UserInteractionResult(
             InteractionType type,
             String message
-    ) {
-    }
+    ) {}
 }

@@ -2,15 +2,17 @@ package org.iaproject.memchat.agent;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.iaproject.memchat.UserInteraction;
 import org.iaproject.memchat.action.ActionExecutor;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.llm.LLmApiClient.*;
 import org.iaproject.memchat.memory.MemoryFullException;
 import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.tools.ToolParser;
-import org.iaproject.memchat.tools.ToolResult;
 
+import java.util.Objects;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class AgentLoop {
     private final int maxStep;
@@ -19,6 +21,7 @@ public class AgentLoop {
     private final ActionExecutor actionExecutor;
     private final MemoryManager memoryManager;
     private final AgentProcessor agentProcessor;
+    private final List<AgentListener> listeners = new CopyOnWriteArrayList<>();
 
     public enum STATE {STOP, NEXT}
 
@@ -39,6 +42,13 @@ public class AgentLoop {
         this.mapper = new ObjectMapper();
         this.actionExecutor = new ActionExecutor(ToolParser.parse(List.of(tools)));
         this.agentProcessor = new AgentProcessor(memoryManager, actionExecutor, mapper);
+        this.agentProcessor.setEventPublisher(this::publish);
+    }
+
+    public AutoCloseable subscribe(AgentListener listener) {
+        Objects.requireNonNull(listener, "listener");
+        listeners.add(listener);
+        return () -> listeners.remove(listener);
     }
 
     public void run(String instruction)
@@ -55,7 +65,10 @@ public class AgentLoop {
                 return;
             Thread.sleep(100);
         }
-        System.out.println("Maximum steps reached");
+        publish(new AgentEvent(
+                AgentEvent.Type.SYSTEM,
+                "Maximum steps reached"
+        ));
     }
 
     private List<ChatMessage> getContext() {
@@ -73,6 +86,10 @@ public class AgentLoop {
         if (memoryManager != null) {
             memoryManager.addMessage(message);
         }
+    }
+
+    private void publish(AgentEvent event) {
+        listeners.forEach(listener -> listener.onEvent(event));
     }
 
 }
