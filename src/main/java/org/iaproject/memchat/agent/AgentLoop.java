@@ -48,24 +48,25 @@ public class AgentLoop {
         List<ChatMessage> context;
         for (int i = 0; i < maxStep; i++) {
 
-            try {
-                context = memoryManager.context();
-            } catch (MemoryFullException e) {
-                memoryManager.compact();
-                context = memoryManager.context();
-            }
-            ChatResponse response = client.complete(
-                    context,
-                    actionExecutor.getToolsDescriptions()
-            );
-
+            context = getContext();
+            ChatResponse response = client.complete(context, actionExecutor.getToolsDescriptions());
             STATE state = agentProcessor.process(response);
             if (state == STATE.STOP)
                 return;
             Thread.sleep(100);
         }
-
         System.out.println("Maximum steps reached");
+    }
+
+    private List<ChatMessage> getContext() {
+        List<ChatMessage> context;
+        try {
+            context = memoryManager.context();
+        } catch (MemoryFullException e) {
+            memoryManager.compact();
+            context = memoryManager.context();
+        }
+        return context;
     }
 
     private void addMessage(ChatMessage message) {
