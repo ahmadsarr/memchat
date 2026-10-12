@@ -3,7 +3,8 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 .kotlin
-
+memory.json
+recall.json
 ### IntelliJ IDEA ###
 .idea/
 .idea/modules.xml
