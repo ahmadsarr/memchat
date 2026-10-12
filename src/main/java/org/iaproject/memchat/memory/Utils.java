@@ -30,7 +30,6 @@ public class Utils {
             "comme", "aussi", "alors", "encore",
             "tout", "tous", "toute", "toutes", "ici", "y",
 
-            // Anglais
             "the", "an", "and", "or", "but", "of", "to",
             "in", "on", "at", "by", "for", "from", "with",
             "without", "about", "into", "over", "under",

@@ -14,21 +14,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-import org.iaproject.memchat.memory.ArchivalMemory;
+import org.iaproject.memchat.memory.ArchivalMemoryRepository;
 import org.iaproject.memchat.memory.Memory;
 
 import static org.iaproject.memchat.memory.Utils.STOP_WORDS;
 
-public class FileArchivalMemoryImpl implements ArchivalMemory {
+public class FileArchivalMemoryRepository implements ArchivalMemoryRepository {
     private final Map<String, String> memories = new LinkedHashMap<>();
     private final ObjectMapper mapper = new ObjectMapper();
     private final Path file;
 
-    public FileArchivalMemoryImpl() {
+    public FileArchivalMemoryRepository() {
         this(Path.of("memory.json"));
     }
 
-    public FileArchivalMemoryImpl(Path file) {
+    public FileArchivalMemoryRepository(Path file) {
         this.file = file;
         load();
     }

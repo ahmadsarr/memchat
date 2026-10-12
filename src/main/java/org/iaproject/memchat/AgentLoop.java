@@ -3,16 +3,13 @@ package org.iaproject.memchat;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.iaproject.memchat.action.ActionExecutor;
-import org.iaproject.memchat.action.ActionParser;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.llm.LLmApiClient.*;
-import org.iaproject.memchat.llm.PromptBuilder;
 import org.iaproject.memchat.memory.MemoryFullException;
 import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.tools.ToolParser;
 import org.iaproject.memchat.tools.ToolResult;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class AgentLoop {

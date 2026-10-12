@@ -1,4 +1,4 @@
-package org.iaproject.memchat.memory;
+package org.iaproject.memchat.memory.strategy;
 
 import org.iaproject.memchat.llm.LLmApiClient;
 

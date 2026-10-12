@@ -13,21 +13,21 @@ import java.util.UUID;
 
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.memory.Memory;
-import org.iaproject.memchat.memory.RecallStorage;
+import org.iaproject.memchat.memory.RecallStorageRepository;
 import org.iaproject.memchat.memory.Utils;
 
-public class FileRecallStorageImpl implements RecallStorage {
+public class FileRecallStorageRepository implements RecallStorageRepository {
     private record Entry(String id, LLmApiClient.ChatMessage message) {}
 
     private final List<Entry> entries = new ArrayList<>();
     private final ObjectMapper mapper = new ObjectMapper();
     private final Path file;
 
-    public FileRecallStorageImpl() {
+    public FileRecallStorageRepository() {
         this(Path.of("recall.json"));
     }
 
-    public FileRecallStorageImpl(Path file) {
+    public FileRecallStorageRepository(Path file) {
         this.file = file;
         load();
     }

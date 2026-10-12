@@ -3,6 +3,8 @@ package org.iaproject.memchat.memory;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.llm.LLmApiClient.*;
 import org.iaproject.memchat.llm.PromptBuilder;
+import org.iaproject.memchat.memory.strategy.CompactStrategy;
+import org.iaproject.memchat.memory.strategy.ContextControlStrategy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,18 +14,20 @@ public class MemoryManager {
     private final WorkingMemory workingMemory;
     private final RecallStorage recallStorage;
     private final ArchivalMemory archivalStorage;
-    private final ContextControl contextControl;
+    private final ContextControlStrategy contextControlStrategy;
     private final CompactStrategy compactStrategy;
 
     public MemoryManager(
             WorkingMemory workingMemory,
             RecallStorage recallStorage,
-            ArchivalMemory archivalStorage, ContextControl contextControl, CompactStrategy compactStrategy
+            ArchivalMemory archivalStorage,
+            ContextControlStrategy contextControlStrategy,
+            CompactStrategy compactStrategy
     ) {
         this.workingMemory = workingMemory;
         this.recallStorage = recallStorage;
         this.archivalStorage = archivalStorage;
-        this.contextControl = contextControl;
+        this.contextControlStrategy = contextControlStrategy;
         this.compactStrategy = compactStrategy;
     }
 
@@ -87,7 +91,7 @@ public class MemoryManager {
 
     public List<ChatMessage> context() {
         List<ChatMessage> context = new ArrayList<>(contextWithoutControl());
-        switch (this.contextControl.pressure(context)) {
+        switch (this.contextControlStrategy.pressure(context)) {
             case NORMAL -> {
             }
             case WARNING -> context.add(warningMessage);
@@ -98,10 +102,10 @@ public class MemoryManager {
 
     public void compact() {
 
-        int previousTokens = contextControl.estimateTokens(contextWithoutControl());
+        int previousTokens = contextControlStrategy.estimateTokens(contextWithoutControl());
         for (int attempt = 0; attempt < 3; attempt++) {
 
-            if (contextControl.pressure(contextWithoutControl()) != ContextControl.Pressure.FLUSH_REQUIRED) {
+            if (contextControlStrategy.pressure(contextWithoutControl()) != ContextControlStrategy.Pressure.FLUSH_REQUIRED) {
                 return;
             }
             List<ChatMessage> candidates = workingMemory.selectEvictionCandidates();
@@ -112,7 +116,7 @@ public class MemoryManager {
 
             workingMemory.applyCompact(candidates, newSummary);
 
-            int currentTokens = contextControl.estimateTokens(
+            int currentTokens = contextControlStrategy.estimateTokens(
                     contextWithoutControl()
             );
 
@@ -125,8 +129,8 @@ public class MemoryManager {
             previousTokens = currentTokens;
         }
 
-        if (contextControl.pressure(contextWithoutControl())
-                == ContextControl.Pressure.FLUSH_REQUIRED) {
+        if (contextControlStrategy.pressure(contextWithoutControl())
+                == ContextControlStrategy.Pressure.FLUSH_REQUIRED) {
             throw new IllegalStateException(
                     "Context remains full after compaction"
             );

@@ -22,15 +22,14 @@ public class MemoryToolsImpl implements MemoryTools {
 
     @Override
     @Tool(description = """
-            Search persistent memory for information relevant to a query.
-            Use when answering questions about previously stored knowledge
-            or before storing potentially duplicate facts.
-            Returns matching memories with their IDs, content and scores.
+            Search long-term archival memory for facts relevant to the user's query.
+            Use this before storing information to check for existing or duplicate facts.
+            Results include the memory ID, stored content, and relevance score.
             """)
     public String archivalSearch(
-            @Param(description = "Search query")
+            @Param(description = "Specific keywords or a short description of the fact to find")
             String query,
-            @Param(description = "Maximum number of results, between 1 and 20")
+            @Param(description = "Maximum number of matching memories to return, from 1 to 20")
             int limit
     ) {
         LOGGER.info("Memory search started (query=" + query + ", limit=" + limit + ")");
@@ -48,12 +47,12 @@ public class MemoryToolsImpl implements MemoryTools {
 
     @Override
     @Tool(description = """
-            Store new, durable, reusable information in memory.
-            Search first to avoid duplicates.
-            Returns the ID of the created memory.
+            Store a durable fact, preference, goal, or other information that should
+            remain available across future conversations. Search first and do not store
+            temporary remarks, duplicates, or unsupported assumptions. Returns the new ID.
             """)
     public String archivalStore(
-            @Param(description = "Knowledge to persist")
+            @Param(description = "Clear, self-contained information to preserve for future conversations")
             String content
     ) {
         LOGGER.info("Memory store started (contentLength=" + (content == null ? 0 : content.length()) + ")");
@@ -69,14 +68,14 @@ public class MemoryToolsImpl implements MemoryTools {
 
     @Override
     @Tool(description = """
-            Update an existing memory by its ID.
-            Preserve important information when replacing content.
-            Returns the updated memory.
+            Replace the complete content of an existing archival memory.
+            Use this when a stored fact has changed or needs correction. Preserve
+            all still-valid details and provide the memory ID returned by search or get.
             """)
     public String archivalUpdate(
-            @Param(description = "Existing memory ID")
+            @Param(description = "ID of the archival memory to replace")
             String id,
-            @Param(description = "Complete replacement content")
+            @Param(description = "Complete updated content, including all facts to keep")
             String content
     ) {
         LOGGER.info("Memory update started (id=" + id + ")");
@@ -94,12 +93,12 @@ public class MemoryToolsImpl implements MemoryTools {
 
     @Override
     @Tool(description = """
-            Delete a memory by its ID.
-            Use only when deletion is explicitly requested
-            or the memory is confirmed invalid.
+            Permanently delete an archival memory by its ID.
+            Use only when the user explicitly requests deletion or the stored fact
+            has been confirmed invalid. Never delete based on uncertainty alone.
             """)
     public String archivalDelete(
-            @Param(description = "Memory ID to delete")
+            @Param(description = "ID of the archival memory to permanently delete")
             String id
     ) {
         LOGGER.info("Memory delete started (id=" + id + ")");
@@ -117,11 +116,12 @@ public class MemoryToolsImpl implements MemoryTools {
 
     @Override
     @Tool(description = """
-            Retrieve an existing memory by its unique ID.
-            Returns the memory ID and content.
+            Retrieve the exact content of an archival memory by its unique ID.
+            Use this before updating or deleting a memory when its current content
+            must be verified.
             """)
     public String getArchive(
-            @Param(description = "Memory ID to retrieve")
+            @Param(description = "Unique ID of the archival memory to retrieve")
             String id
     ) {
         LOGGER.info("Memory get started (id=" + id + ")");
@@ -146,8 +146,15 @@ public class MemoryToolsImpl implements MemoryTools {
     }
 
     @Override
-    @Tool(description = "Search recent conversation memory.")
-    public String recallSearch(String query, int limit) {
+    @Tool(description = """
+            Search recent conversation history for information from the current
+            or previous exchanges. Use this when the answer may exist in recent
+            context but is not part of long-term archival memory.
+            """)
+    public String recallSearch(
+            @Param(description = "Keywords or a short description of the recent information to find") String query,
+            @Param(description = "Maximum number of results to return, from 1 to 20") int limit
+    ) {
         LOGGER.info("Recall search started (query=" + query + ", limit=" + limit + ")");
         List<Memory.RecallSearchResult> results = memoryManager.searchRecall(query, limit);
         return json(Map.of(
@@ -158,29 +165,39 @@ public class MemoryToolsImpl implements MemoryTools {
     }
 
     @Override
-    @Tool(description = "Append content to a working-memory section.")
+    @Tool(description = """
+            Append important information to a named working-memory section.
+            Use this for compact, active context that should remain available
+            during the current task.
+            """)
     public String coreAppend(
-            @Param(description = "Working-memory section") String section,
-            @Param(description = "Content to append") String content
+            @Param(description = "Name of the working-memory section") String section,
+            @Param(description = "Important context to add to that section") String content
     ) {
         memoryManager.appendCore(section, content);
         return json(Map.of("success", true, "operation", "core_append", "section", section));
     }
 
     @Override
-    @Tool(description = "Replace content in a working-memory section.")
+    @Tool(description = """
+            Replace the contents of a working-memory section with the latest
+            authoritative information. Use this to correct or refresh active context.
+            """)
     public String coreReplace(
-            @Param(description = "Working-memory section") String section,
-            @Param(description = "Replacement content") String content
+            @Param(description = "Name of the working-memory section") String section,
+            @Param(description = "Complete replacement content for that section") String content
     ) {
         memoryManager.replaceCore(section, content);
         return json(Map.of("success", true, "operation", "core_replace", "section", section));
     }
 
     @Override
-    @Tool(description = "Remove a working-memory section.")
+    @Tool(description = """
+            Remove a working-memory section when its information is obsolete
+            or no longer relevant to the current task.
+            """)
     public String coreRemove(
-            @Param(description = "Working-memory section") String section
+            @Param(description = "Name of the working-memory section to remove") String section
     ) {
         memoryManager.removeCore(section);
         return json(Map.of("success", true, "operation", "core_remove", "section", section));

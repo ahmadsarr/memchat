@@ -1,10 +1,10 @@
-package org.iaproject.memchat.memory;
+package org.iaproject.memchat.memory.strategy;
 
 import org.iaproject.memchat.llm.LLmApiClient;
 
 import java.util.List;
 
-public interface ContextControl {
+public interface ContextControlStrategy {
 
     int estimateTokens(List<LLmApiClient.ChatMessage> messages);
 

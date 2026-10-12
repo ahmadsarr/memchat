@@ -1,11 +1,10 @@
-package org.iaproject.memchat.memory.impl;
+package org.iaproject.memchat.memory.strategy;
 
 import org.iaproject.memchat.llm.LLmApiClient;
-import org.iaproject.memchat.memory.ContextControl;
 
 import java.util.List;
 
-public class ContextControlImpl implements ContextControl {
+public class ContextControlStrategyImpl implements ContextControlStrategy {
     private static final int DEFAULT_MAX_TOKENS = 8_000;
     private static final int DEFAULT_RESPONSE_RESERVE = 1_000;
     private static final double DEFAULT_WARNING_RATIO = 0.80;
@@ -14,11 +13,11 @@ public class ContextControlImpl implements ContextControl {
     private final int warningTokens;
     private final int flushTokens;
 
-    public ContextControlImpl() {
+    public ContextControlStrategyImpl() {
         this(DEFAULT_MAX_TOKENS, DEFAULT_RESPONSE_RESERVE, DEFAULT_WARNING_RATIO, DEFAULT_FLUSH_RATIO);
     }
 
-    public ContextControlImpl(
+    public ContextControlStrategyImpl(
             int maxTokens,
             int responseReserve,
             double warningRatio,

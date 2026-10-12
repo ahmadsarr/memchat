@@ -1,7 +1,6 @@
-package org.iaproject.memchat.memory.impl;
+package org.iaproject.memchat.memory.strategy;
 
 import org.iaproject.memchat.llm.LLmApiClient;
-import org.iaproject.memchat.memory.CompactStrategy;
 
 import java.util.ArrayList;
 import java.util.List;

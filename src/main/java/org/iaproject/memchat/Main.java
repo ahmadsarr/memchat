@@ -6,10 +6,12 @@ import org.iaproject.memchat.llm.OpenAICompatibleClient;
 import org.iaproject.memchat.tools.MemoryTools;
 import org.iaproject.memchat.memory.MemoryToolsImpl;
 import org.iaproject.memchat.memory.MemoryManager;
-import org.iaproject.memchat.memory.impl.FileArchivalMemoryImpl;
-import org.iaproject.memchat.memory.impl.FileRecallStorageImpl;
-import org.iaproject.memchat.memory.impl.ContextControlImpl;
-import org.iaproject.memchat.memory.impl.OpenAICompactStrategy;
+import org.iaproject.memchat.memory.impl.ArchivalMemoryImpl;
+import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
+import org.iaproject.memchat.memory.impl.FileRecallStorageRepository;
+import org.iaproject.memchat.memory.strategy.ContextControlStrategyImpl;
+import org.iaproject.memchat.memory.strategy.OpenAICompactStrategy;
+import org.iaproject.memchat.memory.impl.RecallStorageImpl;
 import org.iaproject.memchat.memory.impl.WorkingMemoryImpl;
 import org.iaproject.memchat.tools.UserInteractionTools;
 import picocli.CommandLine;
@@ -25,9 +27,9 @@ public class Main {
         OpenAICompatibleClient client = new OpenAICompatibleClient(memchatArg.baseUrl, memchatArg.model, memchatArg.apiKey);
         MemoryManager memoryManager = new MemoryManager(
                 new WorkingMemoryImpl(),
-                new FileRecallStorageImpl(),
-                new FileArchivalMemoryImpl(),
-                new ContextControlImpl(),
+                new RecallStorageImpl(new FileRecallStorageRepository()),
+                new ArchivalMemoryImpl(new FileArchivalMemoryRepository()),
+                new ContextControlStrategyImpl(),
                 new OpenAICompactStrategy(client)
         );
         MemoryTools memoryTools = new MemoryToolsImpl(memoryManager);
