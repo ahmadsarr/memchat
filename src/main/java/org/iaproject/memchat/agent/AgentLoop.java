@@ -1,4 +1,4 @@
-package org.iaproject.memchat;
+package org.iaproject.memchat.agent;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +18,10 @@ public class AgentLoop {
     private final ObjectMapper mapper;
     private final ActionExecutor actionExecutor;
     private final MemoryManager memoryManager;
+    private final AgentProcessor agentProcessor;
+
+    public enum STATE {STOP, NEXT}
+
 
     public AgentLoop(int maxStep, LLmApiClient client, Object... tools) {
         this(maxStep, client, null, tools);
@@ -34,6 +38,7 @@ public class AgentLoop {
         this.memoryManager = memoryManager;
         this.mapper = new ObjectMapper();
         this.actionExecutor = new ActionExecutor(ToolParser.parse(List.of(tools)));
+        this.agentProcessor = new AgentProcessor(memoryManager, actionExecutor, mapper);
     }
 
     public void run(String instruction)
@@ -54,35 +59,9 @@ public class AgentLoop {
                     actionExecutor.getToolsDescriptions()
             );
 
-            if (response.toolCalls() == null
-                    || response.toolCalls().isEmpty()) {
-                addMessage(ChatMessage.assistant(response.content()));
-
-                System.out.println("Agent: " + response.content());
+            STATE state = agentProcessor.process(response);
+            if (state == STATE.STOP)
                 return;
-            }
-
-            addMessage(ChatMessage.assistant(
-                    response.content(),
-                    response.toolCalls()
-            ));
-
-            for (ToolCall call : response.toolCalls()) {
-
-                System.out.println("Execute: " + call.name());
-
-                ToolResult result = actionExecutor.execute(
-                        call.name(),
-                        call.arguments()
-                );
-
-                addMessage(ChatMessage.tool(
-                        call.id(),
-                        mapper.writeValueAsString(result)
-                ));
-            }
-
-
             Thread.sleep(100);
         }
 

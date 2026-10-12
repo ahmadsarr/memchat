@@ -95,6 +95,7 @@ public class OpenAICompatibleClient implements LLmApiClient {
         ObjectNode request = this.mapper.createObjectNode();
         request.put("model", this.model);
         request.put("temperature", this.temperature);
+        request.put("parallel_tool_calls", false);
         ArrayNode messagesBody = request.putArray("messages");
         for (ChatMessage chatMessage : chatMessages) {
             ObjectNode msgBody = messagesBody.addObject();
