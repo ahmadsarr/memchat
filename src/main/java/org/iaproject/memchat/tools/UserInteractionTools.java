@@ -19,7 +19,7 @@ public class UserInteractionTools {
     public UserInteractionResult askUser(
             @Param(description = "Clear question to ask the user")
             String question
-    ) throws InterruptedException {
+    ) {
 
         String answer = interaction.ask(question);
 
@@ -34,17 +34,12 @@ public class UserInteractionTools {
             Use when the requested work is complete or no further
             tool operations are necessary.
             Never claim a memory operation succeeded unless confirmed.
-            """)
-    public UserInteractionResult finish(
+            """, terminal = true)
+    public String finish(
             @Param(description = "Final response to the user")
             String answer
     ) {
-        interaction.display(answer);
-
-        return new UserInteractionResult(
-                InteractionType.FINISH,
-                answer
-        );
+        return answer;
     }
 
     public enum InteractionType {

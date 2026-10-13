@@ -27,11 +27,11 @@ public class AgentProcessor {
         this.eventPublisher = eventPublisher == null ? event -> {} : eventPublisher;
     }
 
-    public AgentLoop.STATE process(LLmApiClient.ChatResponse response) throws JsonProcessingException {
+    public AgentDecision process(LLmApiClient.ChatResponse response) throws JsonProcessingException {
         if (!hasToolCall(response.toolCalls())) {
             addMessage(LLmApiClient.ChatMessage.assistant(response.content()));
             publish(AgentEvent.Type.AGENT_MESSAGE, response.content());
-            return AgentLoop.STATE.STOP;
+            return AgentDecision.COMPLETE;
         }
 
         if (response.toolCalls().size() != 1) {
@@ -58,7 +58,13 @@ public class AgentProcessor {
                 call.id(),
                 mapper.writeValueAsString(result)
         ));
-        return AgentLoop.STATE.NEXT;
+
+        if (result.success() && actionExecutor.isTerminal(call.name())) {
+            publish(AgentEvent.Type.AGENT_MESSAGE, result.result());
+            return AgentDecision.COMPLETE;
+        }
+
+        return AgentDecision.CONTINUE;
     }
 
     public boolean hasToolCall(List<LLmApiClient.ToolCall> toolCalls) {

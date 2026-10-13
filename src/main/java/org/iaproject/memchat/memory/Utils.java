@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Arrays;
 import java.util.Locale;
+import java.text.Normalizer;
 import java.util.stream.Collectors;
 
 public class Utils {
@@ -75,7 +76,12 @@ public class Utils {
     }
 
     public static Set<String> tokenize(String text) {
-        return Arrays.stream(text.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+"))
+        String normalized = Normalizer.normalize(
+                text.toLowerCase(Locale.ROOT),
+                Normalizer.Form.NFD
+        ).replaceAll("\\p{M}+", "");
+
+        return Arrays.stream(normalized.split("[^\\p{L}\\p{N}]+"))
                 .filter(word -> !word.isBlank())
                 .filter(word -> !STOP_WORDS.contains(word))
                 .collect(Collectors.toSet());

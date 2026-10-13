@@ -2,7 +2,6 @@ package org.iaproject.memchat.agent;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.iaproject.memchat.UserInteraction;
 import org.iaproject.memchat.action.ActionExecutor;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.llm.LLmApiClient.*;
@@ -12,7 +11,6 @@ import org.iaproject.memchat.tools.ToolParser;
 
 import java.util.Objects;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class AgentLoop {
     private final int maxStep;
@@ -21,14 +19,7 @@ public class AgentLoop {
     private final ActionExecutor actionExecutor;
     private final MemoryManager memoryManager;
     private final AgentProcessor agentProcessor;
-    private final List<AgentListener> listeners = new CopyOnWriteArrayList<>();
-
-    public enum STATE {STOP, NEXT}
-
-
-    public AgentLoop(int maxStep, LLmApiClient client, Object... tools) {
-        this(maxStep, client, null, tools);
-    }
+    private final AgentEventDispatcher eventDispatcher;
 
     public AgentLoop(
             int maxStep,
@@ -37,18 +28,18 @@ public class AgentLoop {
             Object... tools
     ) {
         this.maxStep = maxStep;
-        this.client = client;
-        this.memoryManager = memoryManager;
+        this.client = Objects.requireNonNull(client);
+        this.memoryManager = Objects.requireNonNull(memoryManager);
         this.mapper = new ObjectMapper();
         this.actionExecutor = new ActionExecutor(ToolParser.parse(List.of(tools)));
         this.agentProcessor = new AgentProcessor(memoryManager, actionExecutor, mapper);
         this.agentProcessor.setEventPublisher(this::publish);
+        this.eventDispatcher = new AgentEventDispatcher();
     }
 
+
     public AutoCloseable subscribe(AgentListener listener) {
-        Objects.requireNonNull(listener, "listener");
-        listeners.add(listener);
-        return () -> listeners.remove(listener);
+        return eventDispatcher.subscription(listener);
     }
 
     public void run(String instruction)
@@ -60,15 +51,18 @@ public class AgentLoop {
 
             context = getContext();
             ChatResponse response = client.complete(context, actionExecutor.getToolsDescriptions());
-            STATE state = agentProcessor.process(response);
-            if (state == STATE.STOP)
+            AgentDecision decision = agentProcessor.process(response);
+            if (decision == AgentDecision.COMPLETE) {
+                eventDispatcher.awaitPendingEvents();
                 return;
+            }
             Thread.sleep(100);
         }
         publish(new AgentEvent(
                 AgentEvent.Type.SYSTEM,
                 "Maximum steps reached"
         ));
+        eventDispatcher.awaitPendingEvents();
     }
 
     private List<ChatMessage> getContext() {
@@ -83,13 +77,15 @@ public class AgentLoop {
     }
 
     private void addMessage(ChatMessage message) {
-        if (memoryManager != null) {
-            memoryManager.addMessage(message);
-        }
+        memoryManager.addMessage(message);
     }
 
     private void publish(AgentEvent event) {
-        listeners.forEach(listener -> listener.onEvent(event));
+        eventDispatcher.publish(event);
+    }
+
+    public void close() {
+        eventDispatcher.close();
     }
 
 }

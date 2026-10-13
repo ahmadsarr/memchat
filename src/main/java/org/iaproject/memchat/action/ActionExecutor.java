@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.iaproject.memchat.tools.ToolParser.*;
 import org.iaproject.memchat.tools.ToolResult;
-import org.iaproject.memchat.tools.UserInteractionTools;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -89,6 +88,14 @@ public class ActionExecutor {
         return cachedRegister.values()
                 .stream().map(ToolRegister::toolDescription)
                 .toList();
+    }
+
+    public boolean isTerminal(String name) {
+        if (name == null) {
+            return false;
+        }
+        ToolRegister register = cachedRegister.get(name.toUpperCase());
+        return register != null && register.toolDescription().terminal();
     }
 
     public Object call(ToolRegister toolRegister,
