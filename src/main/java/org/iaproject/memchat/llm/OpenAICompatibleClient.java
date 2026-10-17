@@ -51,6 +51,7 @@ public class OpenAICompatibleClient implements LLmApiClient {
         ObjectNode body = createApiBodyRequest(chatMessages,tools);
         HttpRequest.Builder request = HttpRequest.newBuilder()
                 .uri(URI.create(this.baseUrl + "/chat/completions"))
+                .timeout(Duration.ofMinutes(5))
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
         headers.forEach(request::header);
         try {
