@@ -1,9 +1,9 @@
 package org.iaproject.memchat;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import org.iaproject.memchat.agent.AgentBuilder;
 import org.iaproject.memchat.agent.AgentLoop;
 import org.iaproject.memchat.cli.MemchatArg;
+import org.iaproject.memchat.memory.impl.LuceneArchivalMemoryRepository;
 import picocli.CommandLine;
 
 public class Main {
@@ -37,6 +37,7 @@ public class Main {
                 .model(memchatArg.model)
                 .apiKey(memchatArg.apiKey)
                 .maxSteps(memchatArg.maxSteps)
+                .archivalMemoryRepository(new LuceneArchivalMemoryRepository())
                 .userInteraction(console)
                 .build();
         try {

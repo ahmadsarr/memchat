@@ -17,8 +17,10 @@ import org.iaproject.memchat.search.api.SearchWriter;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 final class LuceneIndex implements SearchWriter, AutoCloseable {
+    private static final Logger LOGGER = Logger.getLogger(LuceneIndex.class.getName());
     static final String ID = "id";
     static final String BODY = "body";
 
@@ -43,6 +45,10 @@ final class LuceneIndex implements SearchWriter, AutoCloseable {
         Objects.requireNonNull(searchDocument, "searchDocument");
         String id = requireNonBlank(searchDocument.id(), "Document ID");
         String content = requireNonBlank(searchDocument.content(), "Document content");
+        long startedAt = System.nanoTime();
+        LOGGER.info("Lucene index started (id=" + id
+                + ", contentLength=" + content.length()
+                + ", metadata=" + (searchDocument.metadata() == null ? 0 : searchDocument.metadata().size()) + ")");
 
         Document document = new Document();
         document.add(new StringField(ID, id, Field.Store.YES));
@@ -61,7 +67,13 @@ final class LuceneIndex implements SearchWriter, AutoCloseable {
 
         try {
             indexWriter.updateDocument(new Term(ID, id), document);
+            indexWriter.commit();
+            LOGGER.info("Lucene index completed (id=" + id + ", committed=true"
+                    + ", durationMs=" + elapsedMillis(startedAt) + ")");
         } catch (IOException e) {
+            LOGGER.warning("Lucene index failed (id=" + id
+                    + ", durationMs=" + elapsedMillis(startedAt)
+                    + ", error=" + e.getClass().getSimpleName() + ")");
             throw new SearchException("Unable to index document: " + id, e);
         }
     }
@@ -69,9 +81,17 @@ final class LuceneIndex implements SearchWriter, AutoCloseable {
     @Override
     public void remove(String documentId) throws SearchException {
         String id = requireNonBlank(documentId, "Document ID");
+        long startedAt = System.nanoTime();
+        LOGGER.info("Lucene remove started (id=" + id + ")");
         try {
             indexWriter.deleteDocuments(new Term(ID, id));
+            indexWriter.commit();
+            LOGGER.info("Lucene remove completed (id=" + id + ", committed=true"
+                    + ", durationMs=" + elapsedMillis(startedAt) + ")");
         } catch (IOException e) {
+            LOGGER.warning("Lucene remove failed (id=" + id
+                    + ", durationMs=" + elapsedMillis(startedAt)
+                    + ", error=" + e.getClass().getSimpleName() + ")");
             throw new SearchException("Unable to remove document: " + id, e);
         }
     }
@@ -91,11 +111,17 @@ final class LuceneIndex implements SearchWriter, AutoCloseable {
 
     @Override
     public void close() throws IOException {
+        LOGGER.info("Lucene index closing");
         try {
             searcherManager.close();
         } finally {
             indexWriter.close();
         }
+        LOGGER.info("Lucene index closed");
+    }
+
+    private static long elapsedMillis(long startedAt) {
+        return java.time.Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
     }
 
     private static String requireNonBlank(String value, String fieldName) {
