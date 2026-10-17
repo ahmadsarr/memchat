@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LuceneSearchAdapterTest {
     @Test
@@ -26,8 +27,9 @@ class LuceneSearchAdapterTest {
             var result = adapter.search("Java", 10);
 
             assertEquals(1, result.totalHits());
-            assertEquals("memory-1", result.documents().getFirst().id());
-            assertEquals("preference", result.documents().getFirst().metadata().get("type"));
+            assertEquals("memory-1", result.results().getFirst().document().id());
+            assertEquals("preference", result.results().getFirst().document().metadata().get("type"));
+            assertTrue(result.results().getFirst().score() > 0);
 
             adapter.remove("memory-1");
 

@@ -9,12 +9,15 @@ import org.iaproject.memchat.search.api.SearchReader;
 import org.iaproject.memchat.search.api.SearchWriter;
 
 import java.io.IOException;
+import java.util.Optional;
 
 public final class LuceneSearchAdapter implements SearchReader, SearchWriter, AutoCloseable {
+    private final Directory directory;
     private final LuceneIndex index;
     private final LuceneBm25Searcher bm25Searcher;
 
     public LuceneSearchAdapter(Directory directory, IndexWriterConfig config) throws IOException {
+        this.directory = directory;
         this.index = new LuceneIndex(directory, config);
         this.bm25Searcher = new LuceneBm25Searcher(index);
     }
@@ -30,12 +33,21 @@ public final class LuceneSearchAdapter implements SearchReader, SearchWriter, Au
     }
 
     @Override
+    public Optional<SearchDocument> findById(String documentId) throws SearchException {
+        return bm25Searcher.findById(documentId);
+    }
+
+    @Override
     public void remove(String documentId) throws SearchException {
         index.remove(documentId);
     }
 
     @Override
     public void close() throws IOException {
-        index.close();
+        try {
+            index.close();
+        } finally {
+            directory.close();
+        }
     }
 }

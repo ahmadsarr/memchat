@@ -24,6 +24,7 @@ public class FileArchivalMemoryRepository implements ArchivalMemoryRepository {
     private final ObjectMapper mapper = new ObjectMapper();
     private final Path file;
 
+
     public FileArchivalMemoryRepository() {
         this(Path.of("memory.json"));
     }
@@ -53,9 +54,9 @@ public class FileArchivalMemoryRepository implements ArchivalMemoryRepository {
         return memories.entrySet().stream()
                 .map(entry -> new Memory.MemorySearchResult(
                         entry.getKey(), entry.getValue(),
-                        keywords.stream().filter(tokens(entry.getValue())::contains).count()))
+                         (float) keywords.stream().filter(tokens(entry.getValue())::contains).count()))
                 .filter(result -> result.score() > 0)
-                .sorted(Comparator.comparingLong(Memory.MemorySearchResult::score).reversed())
+                .sorted(Comparator.comparingDouble(Memory.MemorySearchResult::score).reversed())
                 .limit(limit)
                 .toList();
     }
