@@ -24,7 +24,7 @@ public class Main {
                 .build();
         agentLoop.subscribe(event -> {
             switch (event.type()) {
-                case AGENT_MESSAGE -> System.out.println("Agent: " + event.message());
+                case AGENT_MESSAGE -> System.out.println("Agent> " + event.message());
                 case TOOL_EXECUTION -> System.out.println("Execute: " + event.message());
                 default -> System.out.println(event.message());
             }

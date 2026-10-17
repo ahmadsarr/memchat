@@ -12,7 +12,7 @@ import org.iaproject.memchat.tools.ToolParser;
 import java.util.Objects;
 import java.util.List;
 
-public class AgentLoop {
+public class AgentLoop  {
     private final int maxStep;
     private final LLmApiClient client;
     private final ObjectMapper mapper;
@@ -42,8 +42,7 @@ public class AgentLoop {
         return eventDispatcher.subscription(listener);
     }
 
-    public void run(String instruction)
-            throws InterruptedException, JsonProcessingException {
+    public void run(String instruction) throws InterruptedException, JsonProcessingException {
 
         addMessage(ChatMessage.user(instruction));
         List<ChatMessage> context;
