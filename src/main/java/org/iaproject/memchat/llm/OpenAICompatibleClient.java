@@ -16,8 +16,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class OpenAICompatibleClient implements LLmApiClient {
+    private static final Logger LOGGER = Logger.getLogger(OpenAICompatibleClient.class.getName());
+    private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
+
     private final String baseUrl;
     private final String model;
     private final Double temperature;
@@ -51,12 +56,19 @@ public class OpenAICompatibleClient implements LLmApiClient {
         ObjectNode body = createApiBodyRequest(chatMessages,tools);
         HttpRequest.Builder request = HttpRequest.newBuilder()
                 .uri(URI.create(this.baseUrl + "/chat/completions"))
-                .timeout(Duration.ofMinutes(5))
+                .timeout(REQUEST_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
         headers.forEach(request::header);
+        long startedAt = System.nanoTime();
+        LOGGER.info("LLM request started (model=" + model
+                + ", messages=" + chatMessages.size()
+                + ", tools=" + tools.size() + ")");
         try {
             HttpResponse<String> response = this.httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString());
+            long durationMillis = elapsedMillis(startedAt);
             if (!isSuccessfull(response)) {
+                LOGGER.warning("LLM request failed (status=" + response.statusCode()
+                        + ", durationMs=" + durationMillis + ")");
                 throw new RuntimeException("Erreur vLLM [" + response.statusCode() + "] : " + response.body());
             }
             JsonNode root = mapper.readTree(response.body());
@@ -82,10 +94,19 @@ public class OpenAICompatibleClient implements LLmApiClient {
                 }
             }
 
+            LOGGER.info("LLM request completed (status=" + response.statusCode()
+                    + ", durationMs=" + durationMillis
+                    + ", toolCalls=" + toolCalls.size() + ")");
             return new ChatResponse(content, toolCalls);
         } catch (IOException | InterruptedException e) {
+            LOGGER.log(Level.WARNING, "LLM request failed (durationMs=" + elapsedMillis(startedAt)
+                    + ", error=" + e.getClass().getSimpleName() + ")", e);
             throw new RuntimeException(e);
         }
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
     }
 
     private <T> boolean isSuccessfull(HttpResponse<T> response) {

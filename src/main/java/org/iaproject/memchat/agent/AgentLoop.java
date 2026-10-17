@@ -11,8 +11,10 @@ import org.iaproject.memchat.tools.ToolParser;
 
 import java.util.Objects;
 import java.util.List;
+import java.util.logging.Logger;
 
-public class AgentLoop  {
+public class AgentLoop {
+    private final static Logger log = Logger.getLogger(AgentLoop.class.getName());
     private final int maxStep;
     private final LLmApiClient client;
     private final ObjectMapper mapper;
