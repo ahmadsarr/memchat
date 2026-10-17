@@ -3,6 +3,7 @@ package org.iaproject.memchat.memory;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
 import org.iaproject.memchat.memory.impl.FileRecallStorageRepository;
+import org.iaproject.memchat.memory.impl.LuceneArchivalMemoryRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -52,6 +53,33 @@ class MemoryRepositoryTest {
         assertEquals(1, results.size());
         assertEquals(id, results.getFirst().id());
         assertEquals("call-1", results.getFirst().content().toolCalls().getFirst().id());
+    }
+
+    @Test
+    void luceneArchivalMemoryIndexesUpdatesDeletesAndReopens() throws Exception {
+        Path directory = temporaryDirectory.resolve("memory-index");
+        String id;
+
+        try (var repository = new LuceneArchivalMemoryRepository(directory)) {
+            id = repository.insert("The user prefers Java and Maven");
+
+            var results = repository.search("Java", 10);
+            assertEquals(1, results.size());
+            assertEquals(id, results.getFirst().id());
+            assertTrue(results.getFirst().score() > 0);
+
+            repository.update(id, "The user prefers Kotlin and Gradle");
+            assertTrue(repository.search("Kotlin", 10).stream()
+                    .anyMatch(result -> result.id().equals(id)));
+            assertTrue(repository.search("Java", 10).isEmpty());
+        }
+
+        try (var reopened = new LuceneArchivalMemoryRepository(directory)) {
+            assertEquals("The user prefers Kotlin and Gradle", reopened.get(id));
+            reopened.delete(id);
+            assertNull(reopened.get(id));
+            assertTrue(reopened.search("Kotlin", 10).isEmpty());
+        }
     }
 
     @Test
