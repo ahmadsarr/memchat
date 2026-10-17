@@ -8,12 +8,14 @@ import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.tools.ToolResult;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class AgentProcessor {
 
     private final MemoryManager memoryManager;
     private final ActionExecutor actionExecutor;
     private final ObjectMapper mapper;
+    private Consumer<AgentEvent> eventPublisher = event -> {};
 
     public AgentProcessor(MemoryManager memoryManager, ActionExecutor actionExecutor, ObjectMapper mapper) {
         this.memoryManager = memoryManager;
@@ -21,11 +23,15 @@ public class AgentProcessor {
         this.mapper = mapper;
     }
 
-    public AgentLoop.STATE process(LLmApiClient.ChatResponse response) throws JsonProcessingException {
+    public void setEventPublisher(Consumer<AgentEvent> eventPublisher) {
+        this.eventPublisher = eventPublisher == null ? event -> {} : eventPublisher;
+    }
+
+    public AgentDecision process(LLmApiClient.ChatResponse response) throws JsonProcessingException {
         if (!hasToolCall(response.toolCalls())) {
             addMessage(LLmApiClient.ChatMessage.assistant(response.content()));
-            System.out.println("Agent: " + response.content());
-            return AgentLoop.STATE.STOP;
+            publish(AgentEvent.Type.AGENT_MESSAGE, response.content());
+            return AgentDecision.COMPLETE;
         }
 
         if (response.toolCalls().size() != 1) {
@@ -41,7 +47,7 @@ public class AgentProcessor {
 
         LLmApiClient.ToolCall call = response.toolCalls().getFirst();
 
-        System.out.println("Execute: " + call.name());
+        publish(AgentEvent.Type.TOOL_EXECUTION, call.name());
 
         ToolResult result = actionExecutor.execute(
                 call.name(),
@@ -52,7 +58,13 @@ public class AgentProcessor {
                 call.id(),
                 mapper.writeValueAsString(result)
         ));
-        return AgentLoop.STATE.NEXT;
+
+        if (result.success() && actionExecutor.isTerminal(call.name())) {
+            publish(AgentEvent.Type.AGENT_MESSAGE, result.result());
+            return AgentDecision.COMPLETE;
+        }
+
+        return AgentDecision.CONTINUE;
     }
 
     public boolean hasToolCall(List<LLmApiClient.ToolCall> toolCalls) {
@@ -63,5 +75,9 @@ public class AgentProcessor {
         if (memoryManager != null) {
             memoryManager.addMessage(message);
         }
+    }
+
+    private void publish(AgentEvent.Type type, String message) {
+        eventPublisher.accept(new AgentEvent(type, message));
     }
 }

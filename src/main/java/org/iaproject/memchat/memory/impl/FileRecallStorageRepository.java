@@ -55,11 +55,28 @@ public class FileRecallStorageRepository implements RecallStorageRepository {
         return entries.stream()
                 .map(entry -> new Memory.RecallSearchResult(
                         entry.id(), entry.message(),
-                        keywords.stream().filter(Utils.tokenize(entry.message().content())::contains).count()))
+                        keywords.stream().filter(Utils.tokenize(searchableText(entry.message()))::contains).count()))
                 .filter(result -> result.score() > 0)
                 .sorted(Comparator.comparingLong(Memory.RecallSearchResult::score).reversed())
                 .limit(limit)
                 .toList();
+    }
+
+    private static String searchableText(LLmApiClient.ChatMessage message) {
+        StringBuilder text = new StringBuilder(
+                message.content() == null ? "" : message.content()
+        );
+        if (message.toolCallId() != null) {
+            text.append(' ').append(message.toolCallId());
+        }
+        if (message.toolCalls() != null) {
+            for (LLmApiClient.ToolCall call : message.toolCalls()) {
+                text.append(' ').append(call.id())
+                        .append(' ').append(call.name())
+                        .append(' ').append(call.arguments());
+            }
+        }
+        return text.toString();
     }
 
     private void load() {

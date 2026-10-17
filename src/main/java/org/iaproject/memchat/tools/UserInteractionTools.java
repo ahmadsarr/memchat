@@ -1,18 +1,14 @@
 package org.iaproject.memchat.tools;
 
-import java.util.Objects;
-import java.util.Scanner;
+import org.iaproject.memchat.UserInteraction;
 
+import java.util.Objects;
 public class UserInteractionTools {
 
-    private final Scanner scanner;
+    private final UserInteraction interaction;
 
-    public UserInteractionTools(Scanner scanner) {
-        this.scanner = Objects.requireNonNull(scanner);
-    }
-
-    public UserInteractionTools() {
-        this.scanner = new Scanner(System.in);
+    public UserInteractionTools(UserInteraction interaction) {
+        this.interaction = Objects.requireNonNull(interaction);
     }
 
     @Tool(description = """
@@ -24,13 +20,12 @@ public class UserInteractionTools {
             @Param(description = "Clear question to ask the user")
             String question
     ) {
-        System.out.println();
-        System.out.println("Agent: " + question);
-        System.out.print("You: ");
+
+        String answer = interaction.ask(question);
 
         return new UserInteractionResult(
                 InteractionType.ASK_USER,
-                scanner.nextLine()
+                answer
         );
     }
 
@@ -39,17 +34,12 @@ public class UserInteractionTools {
             Use when the requested work is complete or no further
             tool operations are necessary.
             Never claim a memory operation succeeded unless confirmed.
-            """)
-    public UserInteractionResult finish(
+            """, terminal = true)
+    public String finish(
             @Param(description = "Final response to the user")
             String answer
     ) {
-        System.out.println();
-        System.out.println("Agent: " + answer);
-        return new UserInteractionResult(
-                InteractionType.FINISH,
-                answer
-        );
+        return answer;
     }
 
     public enum InteractionType {
@@ -60,6 +50,5 @@ public class UserInteractionTools {
     public record UserInteractionResult(
             InteractionType type,
             String message
-    ) {
-    }
+    ) {}
 }

@@ -7,4 +7,6 @@ import java.lang.annotation.*;
 @Inherited()
 public @interface Tool {
     String description();
+
+    boolean terminal() default false;
 }

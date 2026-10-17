@@ -7,7 +7,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ToolParser {
-    public record ToolDescription(String name, String description, Map<String, ParameterDescription> params) {
+    public record ToolDescription(
+            String name,
+            String description,
+            Map<String, ParameterDescription> params,
+            boolean terminal
+    ) {
     }
 
     public record ParameterDescription(
@@ -51,9 +56,10 @@ public class ToolParser {
 
             toolRegisters.add(new ToolRegister(
                     new ToolDescription(
-                            m.getName(),
-                            m.getAnnotation(Tool.class).description(),
-                            params
+                        m.getName(),
+                        m.getAnnotation(Tool.class).description(),
+                            params,
+                            m.getAnnotation(Tool.class).terminal()
                     ),
                     m, tool
             ));
