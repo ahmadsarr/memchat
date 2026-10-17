@@ -15,7 +15,8 @@ public class AgentProcessor {
     private final MemoryManager memoryManager;
     private final ActionExecutor actionExecutor;
     private final ObjectMapper mapper;
-    private Consumer<AgentEvent> eventPublisher = event -> {};
+    private Consumer<AgentEvent> eventPublisher = event -> {
+    };
 
     public AgentProcessor(MemoryManager memoryManager, ActionExecutor actionExecutor, ObjectMapper mapper) {
         this.memoryManager = memoryManager;
@@ -24,7 +25,8 @@ public class AgentProcessor {
     }
 
     public void setEventPublisher(Consumer<AgentEvent> eventPublisher) {
-        this.eventPublisher = eventPublisher == null ? event -> {} : eventPublisher;
+        this.eventPublisher = eventPublisher == null ? event -> {
+        } : eventPublisher;
     }
 
     public AgentDecision process(LLmApiClient.ChatResponse response) throws JsonProcessingException {
@@ -35,9 +37,8 @@ public class AgentProcessor {
         }
 
         if (response.toolCalls().size() != 1) {
-            throw new IllegalStateException(
-                    "The agent must return exactly one tool call per response"
-            );
+            addMessage(LLmApiClient.ChatMessage.system("Error: The agent must return exactly one tool call per response"));
+            return AgentDecision.CONTINUE;
         }
 
         addMessage(LLmApiClient.ChatMessage.assistant(

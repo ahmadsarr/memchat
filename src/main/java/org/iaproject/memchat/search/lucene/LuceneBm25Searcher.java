@@ -16,8 +16,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.logging.Logger;
 
 final class LuceneBm25Searcher implements SearchReader {
+    private static final Logger LOGGER = Logger.getLogger(LuceneBm25Searcher.class.getName());
     private static final int MAX_RESULTS = 100;
 
     private final LuceneIndex index;
@@ -32,6 +34,9 @@ final class LuceneBm25Searcher implements SearchReader {
         if (limit <= 0 || limit > MAX_RESULTS) {
             throw new IllegalArgumentException("Limit must be between 1 and " + MAX_RESULTS);
         }
+        long startedAt = System.nanoTime();
+        LOGGER.info("Lucene BM25 search started (queryLength=" + query.length()
+                + ", limit=" + limit + ")");
 
         IndexSearcher searcher = null;
         try {
@@ -47,8 +52,20 @@ final class LuceneBm25Searcher implements SearchReader {
                 Document stored = searcher.storedFields().document(scoreDoc.doc);
                 documents.add(new SearchResult(toSearchDocument(stored), scoreDoc.score));
             }
-            return new SearchHit(topDocs.totalHits.value(), documents);
+            double maxScore = documents.stream()
+                    .mapToDouble(SearchResult::score)
+                    .max()
+                    .orElse(0);
+            SearchHit result = new SearchHit(topDocs.totalHits.value(), documents);
+            LOGGER.info("Lucene BM25 search completed (totalHits=" + result.totalHits()
+                    + ", returned=" + result.results().size()
+                    + ", maxScore=" + maxScore
+                    + ", durationMs=" + elapsedMillis(startedAt) + ")");
+            return result;
         } catch (IOException | ParseException e) {
+            LOGGER.warning("Lucene BM25 search failed (queryLength=" + query.length()
+                    + ", durationMs=" + elapsedMillis(startedAt)
+                    + ", error=" + e.getClass().getSimpleName() + ")");
             throw new SearchException("Unable to search Lucene index", e);
         } finally {
             release(searcher);
@@ -58,6 +75,8 @@ final class LuceneBm25Searcher implements SearchReader {
     @Override
     public Optional<SearchDocument> findById(String documentId) throws SearchException {
         requireNonBlank(documentId, "Document ID");
+        long startedAt = System.nanoTime();
+        LOGGER.info("Lucene document lookup started (id=" + documentId + ")");
         IndexSearcher searcher = null;
         try {
             searcher = index.acquireSearcher();
@@ -66,11 +85,18 @@ final class LuceneBm25Searcher implements SearchReader {
                     1
             );
             if (topDocs.scoreDocs.length == 0) {
+                LOGGER.info("Lucene document lookup completed (id=" + documentId
+                        + ", found=false, durationMs=" + elapsedMillis(startedAt) + ")");
                 return Optional.empty();
             }
             Document stored = searcher.storedFields().document(topDocs.scoreDocs[0].doc);
+            LOGGER.info("Lucene document lookup completed (id=" + documentId
+                    + ", found=true, durationMs=" + elapsedMillis(startedAt) + ")");
             return Optional.of(toSearchDocument(stored));
         } catch (IOException e) {
+            LOGGER.warning("Lucene document lookup failed (id=" + documentId
+                    + ", durationMs=" + elapsedMillis(startedAt)
+                    + ", error=" + e.getClass().getSimpleName() + ")");
             throw new SearchException("Unable to retrieve document: " + documentId, e);
         } finally {
             release(searcher);
@@ -102,5 +128,9 @@ final class LuceneBm25Searcher implements SearchReader {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " is required");
         }
+    }
+
+    private static long elapsedMillis(long startedAt) {
+        return java.time.Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
     }
 }

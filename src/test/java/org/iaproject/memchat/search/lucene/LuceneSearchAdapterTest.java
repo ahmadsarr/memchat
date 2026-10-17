@@ -1,6 +1,7 @@
 package org.iaproject.memchat.search.lucene;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.iaproject.memchat.search.api.SearchDocument;
@@ -14,8 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LuceneSearchAdapterTest {
     @Test
     void indexesSearchesAndRemovesDocuments() throws Exception {
+        var directory = new ByteBuffersDirectory();
         try (var adapter = new LuceneSearchAdapter(
-                new ByteBuffersDirectory(),
+                directory,
                 new IndexWriterConfig(new StandardAnalyzer())
         )) {
             adapter.index(new SearchDocument(
@@ -23,6 +25,10 @@ class LuceneSearchAdapterTest {
                     "The user prefers Java and Maven",
                     Map.of("type", "preference")
             ));
+
+            try (var reader = DirectoryReader.open(directory)) {
+                assertEquals(1, reader.numDocs());
+            }
 
             var result = adapter.search("Java", 10);
 
