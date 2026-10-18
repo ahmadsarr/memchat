@@ -11,7 +11,6 @@ import org.iaproject.memchat.tools.ToolParser;
 
 import java.util.Objects;
 import java.util.List;
-import java.util.logging.Logger;
 
 public class AgentLoop {
     private final int maxStep;

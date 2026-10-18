@@ -4,15 +4,16 @@ import java.util.*;
 import org.iaproject.memchat.tools.MemoryTools;
 import org.iaproject.memchat.tools.Param;
 import org.iaproject.memchat.tools.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.logging.Logger;
 
 import static org.iaproject.memchat.memory.Utils.*;
 
 public class MemoryToolsImpl implements MemoryTools {
 
     private final MemoryManager memoryManager;
-    private static final Logger LOGGER = Logger.getLogger(MemoryToolsImpl.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(MemoryToolsImpl.class);
 
     public MemoryToolsImpl(MemoryManager memoryManager) {
 
@@ -32,11 +33,11 @@ public class MemoryToolsImpl implements MemoryTools {
             @Param(description = "Maximum number of matching memories to return, from 1 to 20")
             int limit
     ) {
-        LOGGER.info("Memory search started (query=" + query + ", limit=" + limit + ")");
+        LOGGER.info("Memory search started (query={}, limit={})", query, limit);
 
         List<Memory.MemorySearchResult> results = memoryManager.searchArchive(query, limit);
 
-        LOGGER.info("Memory search completed (results=" + results.size() + ")");
+        LOGGER.info("Memory search completed (results={})", results.size());
 
         return json(Map.of(
                 "success", true,
@@ -55,7 +56,7 @@ public class MemoryToolsImpl implements MemoryTools {
             @Param(description = "Clear, self-contained information to preserve for future conversations")
             String content
     ) {
-        LOGGER.info("Memory store started (contentLength=" + (content == null ? 0 : content.length()) + ")");
+        LOGGER.info("Memory store started (contentLength={})", content == null ? 0 : content.length());
 
         String id = memoryManager.archive(content);
 
@@ -78,11 +79,11 @@ public class MemoryToolsImpl implements MemoryTools {
             @Param(description = "Complete updated content, including all facts to keep")
             String content
     ) {
-        LOGGER.info("Memory update started (id=" + id + ")");
+        LOGGER.info("Memory update started (id={})", id);
 
 
         memoryManager.update(id, content);
-        LOGGER.info("Memory updated (id=" + id + ")");
+        LOGGER.info("Memory updated (id={})", id);
 
         return json(Map.of(
                 "success", true,
@@ -101,11 +102,11 @@ public class MemoryToolsImpl implements MemoryTools {
             @Param(description = "ID of the archival memory to permanently delete")
             String id
     ) {
-        LOGGER.info("Memory delete started (id=" + id + ")");
+        LOGGER.info("Memory delete started (id={})", id);
 
         memoryManager.delete(id);
 
-        LOGGER.info("Memory deleted (id=" + id + ")");
+        LOGGER.info("Memory deleted (id={})", id);
 
         return json(Map.of(
                 "success", true,
@@ -124,7 +125,7 @@ public class MemoryToolsImpl implements MemoryTools {
             @Param(description = "Unique ID of the archival memory to retrieve")
             String id
     ) {
-        LOGGER.info("Memory get started (id=" + id + ")");
+        LOGGER.info("Memory get started (id={})", id);
 
         if (id == null || id.isBlank()) {
             return error("Memory ID is required");
@@ -136,7 +137,7 @@ public class MemoryToolsImpl implements MemoryTools {
             return notFound(id);
         }
 
-        LOGGER.info("Memory retrieved (id=" + id + ")");
+        LOGGER.info("Memory retrieved (id={})", id);
 
         return json(Map.of(
                 "success", true,
@@ -155,7 +156,7 @@ public class MemoryToolsImpl implements MemoryTools {
             @Param(description = "Keywords or a short description of the recent information to find") String query,
             @Param(description = "Maximum number of results to return, from 1 to 20") int limit
     ) {
-        LOGGER.info("Recall search started (query=" + query + ", limit=" + limit + ")");
+        LOGGER.info("Recall search started (query={}, limit={})", query, limit);
         List<Memory.RecallSearchResult> results = memoryManager.searchRecall(query, limit);
         return json(Map.of(
                 "success", true,
