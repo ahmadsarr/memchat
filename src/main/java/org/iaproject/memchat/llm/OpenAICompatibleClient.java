@@ -71,38 +71,64 @@ public class OpenAICompatibleClient implements LLmApiClient {
                         + ", durationMs=" + durationMillis + ")");
                 throw new RuntimeException("Erreur vLLM [" + response.statusCode() + "] : " + response.body());
             }
-            JsonNode root = mapper.readTree(response.body());
-            JsonNode message = root.path("choices")
-                    .path(0)
-                    .path("message");
-
-            String content = message.path("content").asText("");
-
-            List<ToolCall> toolCalls = new ArrayList<>();
-
-            JsonNode callsNode = message.path("tool_calls");
-
-            if (callsNode.isArray()) {
-                for (JsonNode call : callsNode) {
-                    JsonNode function = call.path("function");
-
-                    toolCalls.add(new ToolCall(
-                            call.path("id").asText(),
-                            function.path("name").asText(),
-                            function.path("arguments").asText()
-                    ));
-                }
-            }
+            ChatResponse completion = parseResponse(response.body());
 
             LOGGER.info("LLM request completed (status=" + response.statusCode()
                     + ", durationMs=" + durationMillis
-                    + ", toolCalls=" + toolCalls.size() + ")");
-            return new ChatResponse(content, toolCalls);
-        } catch (IOException | InterruptedException e) {
+                    + ", toolCalls=" + completion.toolCalls().size() + ")");
+            return completion;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("LLM request interrupted", e);
+        } catch (IOException e) {
             LOGGER.log(Level.WARNING, "LLM request failed (durationMs=" + elapsedMillis(startedAt)
                     + ", error=" + e.getClass().getSimpleName() + ")", e);
             throw new RuntimeException(e);
         }
+    }
+
+    private ChatResponse parseResponse(String body) throws IOException {
+        JsonNode root = mapper.readTree(body);
+        if (root == null || !root.path("choices").isArray() || root.path("choices").isEmpty()) {
+            throw invalidResponse("missing completion choices");
+        }
+        JsonNode choice = root.path("choices").get(0);
+        String finishReason = choice.path("finish_reason").asText("");
+        if ("length".equals(finishReason) || "content_filter".equals(finishReason)) {
+            throw invalidResponse("incomplete completion (" + finishReason + ")");
+        }
+        JsonNode message = choice.path("message");
+        if (!message.isObject()) {
+            throw invalidResponse("missing assistant message");
+        }
+        JsonNode contentNode = message.path("content");
+        if (!contentNode.isMissingNode() && !contentNode.isNull() && !contentNode.isTextual()) {
+            throw invalidResponse("content must be text or null");
+        }
+        String content = contentNode.asText("");
+        List<ToolCall> toolCalls = new ArrayList<>();
+        JsonNode callsNode = message.path("tool_calls");
+        if (!callsNode.isMissingNode() && !callsNode.isNull() && !callsNode.isArray()) {
+            throw invalidResponse("tool_calls must be an array");
+        }
+        for (JsonNode call : callsNode) {
+            JsonNode function = call.path("function");
+            if (!call.path("id").isTextual() || call.path("id").asText().isBlank()
+                    || !function.path("name").isTextual() || function.path("name").asText().isBlank()
+                    || !function.path("arguments").isTextual()) {
+                throw invalidResponse("tool calls require an id, name and string arguments");
+            }
+            toolCalls.add(new ToolCall(call.path("id").asText(),
+                    function.path("name").asText(), function.path("arguments").asText()));
+        }
+        if (toolCalls.isEmpty() && (content.isBlank() || "tool_calls".equals(finishReason))) {
+            throw invalidResponse("no usable answer or tool call");
+        }
+        return new ChatResponse(content, List.copyOf(toolCalls));
+    }
+
+    private static IllegalStateException invalidResponse(String reason) {
+        return new IllegalStateException("Invalid LLM response: " + reason);
     }
 
     private long elapsedMillis(long startedAt) {
