@@ -37,8 +37,10 @@ public class FileArchivalMemoryRepository implements ArchivalMemoryRepository {
     public synchronized String insert(String content) {
         requireText(content, "Memory content");
         String id = UUID.randomUUID().toString();
+        Map<String, String> updated = new LinkedHashMap<>(memories);
+        updated.put(id, content.trim());
+        save(updated);
         memories.put(id, content.trim());
-        save();
         return id;
     }
 
@@ -65,17 +67,22 @@ public class FileArchivalMemoryRepository implements ArchivalMemoryRepository {
         if (!memories.containsKey(id)) {
             throw new IllegalArgumentException("Memory not found: " + id);
         }
+        Map<String, String> updated = new LinkedHashMap<>(memories);
+        updated.put(id, content.trim());
+        save(updated);
         memories.put(id, content.trim());
-        save();
     }
 
     @Override
     public synchronized void delete(String id) {
         requireText(id, "Memory ID");
-        if (memories.remove(id) == null) {
+        if (!memories.containsKey(id)) {
             throw new IllegalArgumentException("Memory not found: " + id);
         }
-        save();
+        Map<String, String> updated = new LinkedHashMap<>(memories);
+        updated.remove(id);
+        save(updated);
+        memories.remove(id);
     }
 
     @Override
@@ -95,9 +102,9 @@ public class FileArchivalMemoryRepository implements ArchivalMemoryRepository {
         }
     }
 
-    private void save() {
+    private void save(Map<String, String> snapshot) {
         try {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(file.toFile(), memories);
+            AtomicJsonFile.write(mapper, file, snapshot);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to save archival memory", e);
         }
