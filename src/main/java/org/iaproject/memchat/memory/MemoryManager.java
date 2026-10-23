@@ -93,11 +93,15 @@ public class MemoryManager {
     }
 
     private List<ChatMessage> contextWithoutControl() {
+        return contextWithoutControl(workingMemory.getSummary(), workingMemory.getContext());
+    }
+
+    private List<ChatMessage> contextWithoutControl(String summary, List<ChatMessage> messages) {
         List<ChatMessage> context = new ArrayList<>();
 
         context.add(ChatMessage.system(PromptBuilder.SYSTEM));
-        context.add(ChatMessage.system(workingMemory.getSummary()));
-        context.addAll(workingMemory.getContext());
+        context.add(ChatMessage.system(summary));
+        context.addAll(messages);
         return List.copyOf(context);
     }
 
@@ -126,10 +130,9 @@ public class MemoryManager {
 
             validateSummary(newSummary);
 
-            workingMemory.applyCompact(candidates, newSummary);
-
+            List<ChatMessage> messages = workingMemory.getContext();
             int currentTokens = contextControlStrategy.estimateTokens(
-                    contextWithoutControl()
+                    contextWithoutControl(newSummary, messages.subList(candidates.size(), messages.size()))
             );
 
             if (currentTokens >= previousTokens) {
@@ -138,6 +141,8 @@ public class MemoryManager {
                 );
             }
 
+            // Commit only after the replacement has passed every validation.
+            workingMemory.applyCompact(candidates, newSummary);
             previousTokens = currentTokens;
         }
 
