@@ -156,6 +156,19 @@ or rebuild the children from the source corpus before constructing a new
 composite; merely reopening mismatched indexes does not repair them. No automatic
 rollback, degraded-mode fallback, or durable cross-index transaction is claimed.
 
+## Optional terminal UI
+
+The TUI is a separate entry point and does not modify the agent loop:
+
+```sh
+java -cp target/memchat-1.0-SNAPSHOT.jar org.iaproject.memchat.tui.TuiMain --model qwen3.5:9b
+```
+
+It uses Lanterna for a full-screen transcript and fixed bottom input area,
+subscribes to the existing `AgentLoop` events and keeps the plain `Main` path
+unchanged. Use `/help`, `/clear`, `/model` or `/quit` from the TUI. Tool
+confirmation is intentionally not included yet.
+
 ## Agent lifecycle and results
 
 `AgentLoop.run(String)` synchronously returns an `AgentRunResult` on the caller's
