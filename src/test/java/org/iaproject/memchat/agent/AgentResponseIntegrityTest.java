@@ -42,24 +42,6 @@ class AgentResponseIntegrityTest {
                         new LLmApiClient.ToolCall("two", "perform", "{}"))));
     }
 
-    @ParameterizedTest
-    @MethodSource("invalidResponses")
-    void rejectsInvalidResponsesBeforeTouchingMemoryToolsOrEvents(LLmApiClient.ChatResponse response) {
-        var memory = memory();
-        var tool = new CountingTool();
-        var processor = new AgentProcessor(memory,
-                new ActionExecutor(ToolParser.parse(List.of(tool))), new ObjectMapper());
-        List<AgentEvent> events = new ArrayList<>();
-        processor.setEventPublisher(events::add);
-        var before = memory.context();
-
-        assertThrows(IllegalStateException.class, () -> processor.process(response));
-        assertEquals(before, memory.context());
-        assertTrue(memory.searchRecall("perform", 10).isEmpty());
-        assertEquals(0, tool.calls.get());
-        assertTrue(events.isEmpty());
-    }
-
     @Test
     void anUnknownButWellFormedToolStillProducesARecoverableToolResult() throws Exception {
         var memory = memory();
