@@ -15,6 +15,10 @@ public interface LLmApiClient {
             List<ToolCall> toolCalls,
             String toolCallId
     ) {
+        public ChatMessage {
+            toolCalls = toolCalls == null ? null : List.copyOf(toolCalls);
+        }
+
         public static ChatMessage user(String content) {
             return new ChatMessage(Role.USER, content, null, null);
         }
