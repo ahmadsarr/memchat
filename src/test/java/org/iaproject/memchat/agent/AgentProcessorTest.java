@@ -35,7 +35,7 @@ class AgentProcessorTest {
         AgentDecision decision = processor.process(new LLmApiClient.ChatResponse(
                 "",
                 List.of(new LLmApiClient.ToolCall(
-                        "call-1", "finish", "{\"arg0\":\"done\"}"
+                        "call-1", "finish", "{\"answer\":\"done\"}"
                 ))
         ));
 
@@ -50,7 +50,7 @@ class AgentProcessorTest {
         AgentDecision decision = processor.process(new LLmApiClient.ChatResponse(
                 "",
                 List.of(new LLmApiClient.ToolCall(
-                        "call-1", "continueTask", "{\"arg0\":\"step\"}"
+                        "call-1", "continueTask", "{\"value\":\"step\"}"
                 ))
         ));
 

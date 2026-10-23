@@ -31,7 +31,7 @@ class AgentLoopIntegrationTest {
                 return new LLmApiClient.ChatResponse(
                         "",
                         List.of(new LLmApiClient.ToolCall(
-                                "call-1", "echo", "{\"arg0\":\"tool-result\"}"
+                                "call-1", "echo", "{\"value\":\"tool-result\"}"
                         ))
                 );
             }
