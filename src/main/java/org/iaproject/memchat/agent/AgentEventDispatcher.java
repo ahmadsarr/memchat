@@ -8,39 +8,52 @@ import java.util.concurrent.Executors;
 
 public final class AgentEventDispatcher implements AutoCloseable {
     private final List<AgentListener> listeners = new CopyOnWriteArrayList<>();
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Executors.newSingleThreadExecutor(
+            Thread.ofVirtual().name("memchat-events-", 0).factory());
+    private final ThreadLocal<Boolean> delivering = ThreadLocal.withInitial(() -> false);
     private final Object pendingMonitor = new Object();
     private int pendingEvents;
+    private boolean closed;
 
     public AutoCloseable subscription(AgentListener listener) {
         Objects.requireNonNull(listener, "listener");
-        listeners.add(listener);
+        synchronized (pendingMonitor) {
+            requireOpen();
+            listeners.add(listener);
+        }
         return () -> listeners.remove(listener);
     }
 
     public void publish(AgentEvent event) {
-        listeners.forEach(l -> {
-            synchronized (pendingMonitor) {
+        Objects.requireNonNull(event, "event");
+        synchronized (pendingMonitor) {
+            requireOpen();
+            for (AgentListener listener : listeners) {
                 pendingEvents++;
+                try {
+                    executor.execute(() -> {
+                        delivering.set(true);
+                        try {
+                            listener.onEvent(event);
+                        } catch (RuntimeException ignored) {
+                            // A listener must not affect the agent execution.
+                        } finally {
+                            delivering.remove();
+                            eventCompleted();
+                        }
+                    });
+                } catch (RuntimeException exception) {
+                    eventCompleted();
+                    throw exception;
+                }
             }
-            try {
-                executor.execute(() -> {
-                    try {
-                        l.onEvent(event);
-                    } catch (RuntimeException ignored) {
-                        // A listener must not affect the agent execution.
-                    } finally {
-                        eventCompleted();
-                    }
-                });
-            } catch (RuntimeException exception) {
-                eventCompleted();
-                throw exception;
-            }
-        });
+        }
     }
 
     public void awaitPendingEvents() throws InterruptedException {
+        if (delivering.get()) {
+            throw new IllegalStateException("A listener cannot wait for its own event delivery");
+        }
         synchronized (pendingMonitor) {
             while (pendingEvents > 0) {
                 pendingMonitor.wait();
@@ -57,14 +70,37 @@ public final class AgentEventDispatcher implements AutoCloseable {
         }
     }
 
+    private void requireOpen() {
+        if (closed) {
+            throw new IllegalStateException("Event dispatcher is closed");
+        }
+    }
+
     @Override
     public void close() {
-        try {
-            awaitPendingEvents();
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
+        synchronized (pendingMonitor) {
+            closed = true;
+            executor.shutdown();
+            listeners.clear();
         }
-        executor.close();
-        listeners.clear();
+        // A callback may initiate shutdown, but cannot join its own worker.
+        if (!delivering.get()) {
+            boolean interrupted = Thread.interrupted();
+            try {
+                while (true) {
+                    try {
+                        awaitPendingEvents();
+                        break;
+                    } catch (InterruptedException exception) {
+                        interrupted = true;
+                    }
+                }
+                executor.close();
+            } finally {
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
     }
 }
