@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.logging.Logger;
 
 public class AgentLoop {
-    private final static Logger log = Logger.getLogger(AgentLoop.class.getName());
     private final int maxStep;
     private final LLmApiClient client;
     private final ObjectMapper mapper;
@@ -39,6 +38,7 @@ public class AgentLoop {
         this.eventDispatcher = new AgentEventDispatcher();
     }
 
+    //
 
     public AutoCloseable subscribe(AgentListener listener) {
         return eventDispatcher.subscription(listener);
