@@ -1,6 +1,8 @@
 package org.iaproject.memchat.action;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.iaproject.memchat.tools.ToolParser.*;
@@ -14,11 +16,14 @@ import java.util.stream.Collectors;
 
 public class ActionExecutor {
     private final Map<String, ToolRegister> cachedRegister;
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = new ObjectMapper()
+            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
 
     public ActionExecutor(List<ToolRegister> registers) {
         this.cachedRegister = registers.stream()
-                .collect(Collectors.toMap(t -> t.toolDescription().name().toUpperCase(), Function.identity()));
+                .collect(Collectors.toMap(t -> t.toolDescription().name().toUpperCase(Locale.ROOT), Function.identity()));
     }
 
     public ToolResult execute(String name, String arguments) {
@@ -51,11 +56,14 @@ public class ActionExecutor {
     public ToolResult execute(ActionParser.Action action) {
 
 
-        if (action == null || action.name() == null) {
-            return null;
+        if (action == null || action.name() == null || action.name().isBlank()) {
+            return ToolResult.failure("UNKNOWN", "Missing tool name");
+        }
+        if (action.args() == null || !action.args().isObject()) {
+            return ToolResult.failure(action.name(), "Arguments must be a JSON object");
         }
 
-        String toolName = action.name().toUpperCase();
+        String toolName = action.name().toUpperCase(Locale.ROOT);
         ToolRegister register = cachedRegister.get(toolName);
 
         if (register == null) {
@@ -94,7 +102,7 @@ public class ActionExecutor {
         if (name == null) {
             return false;
         }
-        ToolRegister register = cachedRegister.get(name.toUpperCase());
+        ToolRegister register = cachedRegister.get(name.toUpperCase(Locale.ROOT));
         return register != null && register.toolDescription().terminal();
     }
 
