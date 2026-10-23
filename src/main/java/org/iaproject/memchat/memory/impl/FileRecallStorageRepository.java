@@ -38,8 +38,10 @@ public class FileRecallStorageRepository implements RecallStorageRepository {
             throw new IllegalArgumentException("Recall content cannot be empty");
         }
         String id = UUID.randomUUID().toString();
+        List<Entry> updated = new ArrayList<>(entries);
+        updated.add(new Entry(id, message));
+        save(updated);
         entries.add(new Entry(id, message));
-        save();
         return id;
     }
 
@@ -90,9 +92,9 @@ public class FileRecallStorageRepository implements RecallStorageRepository {
         }
     }
 
-    private void save() {
+    private void save(List<Entry> snapshot) {
         try {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(file.toFile(), entries);
+            AtomicJsonFile.write(mapper, file, snapshot);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to save recall memory", e);
         }

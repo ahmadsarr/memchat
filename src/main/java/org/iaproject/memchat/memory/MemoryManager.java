@@ -72,12 +72,13 @@ public class MemoryManager {
 
 
     public void addMessage(LLmApiClient.ChatMessage message) {
-        workingMemory.addMessage(message);
+        java.util.Objects.requireNonNull(message, "message");
         if ((message.content() != null && !message.content().isBlank())
                 || (message.toolCalls() != null && !message.toolCalls().isEmpty())
                 || (message.toolCallId() != null && !message.toolCallId().isBlank())) {
             recallStorage.add(message);
         }
+        workingMemory.addMessage(message);
     }
 
     public void appendCore(String section, String content) {
