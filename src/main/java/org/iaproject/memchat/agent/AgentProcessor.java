@@ -28,7 +28,13 @@ public class AgentProcessor {
     }
 
     public AgentDecision process(LLmApiClient.ChatResponse response) throws JsonProcessingException {
+        if (response == null) {
+            throw new IllegalStateException("The LLM returned no response");
+        }
         if (!hasToolCall(response.toolCalls())) {
+            if (response.content() == null || response.content().isBlank()) {
+                throw new IllegalStateException("The LLM returned no answer or tool call");
+            }
             addMessage(LLmApiClient.ChatMessage.assistant(response.content()));
             publish(AgentEvent.Type.AGENT_MESSAGE, response.content());
             return AgentDecision.COMPLETE;
@@ -40,12 +46,16 @@ public class AgentProcessor {
             );
         }
 
+        LLmApiClient.ToolCall call = response.toolCalls().getFirst();
+        if (call == null || call.id() == null || call.id().isBlank()
+                || call.name() == null || call.name().isBlank()) {
+            throw new IllegalStateException("A tool call requires a non-empty id and name");
+        }
+
         addMessage(LLmApiClient.ChatMessage.assistant(
                 response.content(),
-                response.toolCalls()
+                List.of(call)
         ));
-
-        LLmApiClient.ToolCall call = response.toolCalls().getFirst();
 
         publish(AgentEvent.Type.TOOL_EXECUTION, call.name());
 
