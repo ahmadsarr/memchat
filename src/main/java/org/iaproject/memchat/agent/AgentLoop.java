@@ -13,8 +13,11 @@ import java.util.Objects;
 import java.util.List;
 import java.util.logging.Logger;
 
-public class AgentLoop {
+public class AgentLoop implements AutoCloseable {
     private final static Logger log = Logger.getLogger(AgentLoop.class.getName());
+    private final Object lifecycleMonitor = new Object();
+    private boolean running;
+    private boolean closed;
     private final int maxStep;
     private final LLmApiClient client;
     private final ObjectMapper mapper;
@@ -29,6 +32,9 @@ public class AgentLoop {
             MemoryManager memoryManager,
             Object... tools
     ) {
+        if (maxStep < 1) {
+            throw new IllegalArgumentException("maxStep must be positive");
+        }
         this.maxStep = maxStep;
         this.client = Objects.requireNonNull(client);
         this.memoryManager = Objects.requireNonNull(memoryManager);
@@ -41,29 +47,61 @@ public class AgentLoop {
 
 
     public AutoCloseable subscribe(AgentListener listener) {
-        return eventDispatcher.subscription(listener);
+        synchronized (lifecycleMonitor) {
+            requireOpen();
+            return eventDispatcher.subscription(listener);
+        }
     }
 
     public void run(String instruction) throws InterruptedException, JsonProcessingException {
-
-        addMessage(ChatMessage.user(instruction));
-        List<ChatMessage> context;
-        for (int i = 0; i < maxStep; i++) {
-
-            context = getContext();
-            ChatResponse response = client.complete(context, actionExecutor.getToolsDescriptions());
-            AgentDecision decision = agentProcessor.process(response);
-            if (decision == AgentDecision.COMPLETE) {
-                eventDispatcher.awaitPendingEvents();
-                return;
-            }
-            Thread.sleep(100);
+        if (instruction == null || instruction.isBlank()) {
+            throw new IllegalArgumentException("instruction must not be empty");
         }
-        publish(new AgentEvent(
-                AgentEvent.Type.SYSTEM,
-                "Maximum steps reached"
-        ));
-        eventDispatcher.awaitPendingEvents();
+        synchronized (lifecycleMonitor) {
+            requireOpen();
+            if (running) {
+                throw new IllegalStateException("Agent is already running");
+            }
+            running = true;
+        }
+        try {
+            checkInterrupted();
+            addMessage(ChatMessage.user(instruction));
+            for (int i = 0; i < maxStep; i++) {
+                checkInterrupted();
+                List<ChatMessage> context = getContext();
+                checkInterrupted();
+                ChatResponse response = client.complete(context, actionExecutor.getToolsDescriptions());
+                checkInterrupted();
+                AgentDecision decision = agentProcessor.process(response);
+                checkInterrupted();
+                if (decision == AgentDecision.COMPLETE) {
+                    eventDispatcher.awaitPendingEvents();
+                    return;
+                }
+                if (i + 1 < maxStep) {
+                    Thread.sleep(100);
+                }
+            }
+            publish(new AgentEvent(AgentEvent.Type.SYSTEM, "Maximum steps reached"));
+            eventDispatcher.awaitPendingEvents();
+        } finally {
+            synchronized (lifecycleMonitor) {
+                running = false;
+            }
+        }
+    }
+
+    private static void checkInterrupted() throws InterruptedException {
+        if (Thread.interrupted()) {
+            throw new InterruptedException("Agent execution interrupted");
+        }
+    }
+
+    private void requireOpen() {
+        if (closed) {
+            throw new IllegalStateException("Agent is closed");
+        }
     }
 
     private List<ChatMessage> getContext() {
@@ -85,7 +123,17 @@ public class AgentLoop {
         eventDispatcher.publish(event);
     }
 
+    @Override
     public void close() {
+        synchronized (lifecycleMonitor) {
+            if (closed) {
+                return;
+            }
+            if (running) {
+                throw new IllegalStateException("Interrupt and finish the active run before closing the agent");
+            }
+            closed = true;
+        }
         eventDispatcher.close();
     }
 

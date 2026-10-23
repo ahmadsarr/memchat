@@ -77,6 +77,9 @@ public class ActionExecutor {
                     ? ite.getCause()
                     : e;
 
+            if (cause instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             return ToolResult.failure(
                     toolName,
                     cause == null ? e.toString() : cause.toString()
