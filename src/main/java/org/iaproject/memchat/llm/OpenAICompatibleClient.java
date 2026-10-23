@@ -123,23 +123,14 @@ public class OpenAICompatibleClient implements LLmApiClient {
                     function.path("name").asText(), function.path("arguments").asText()));
         }
 
+        if ("tool_calls".equals(finishReason) && toolCalls.isEmpty()) {
+            throw invalidResponse("finish_reason=tool_calls requires a tool call");
+        }
+        // Reasoning is not a final answer or a replacement memory summary.
         if (content.isBlank() && toolCalls.isEmpty()) {
-            content = firstText(message);
-            if (content.isBlank()) {
-                throw invalidResponse("empty assistant message");
-            }
+            throw invalidResponse("incomplete completion: no final answer or tool call");
         }
         return new ChatResponse(content, List.copyOf(toolCalls));
-    }
-
-    private static String firstText(JsonNode node) {
-        for (String field : new String[]{"reasoning", "reasoning_content"}) {
-            JsonNode value = node.path(field);
-            if (value.isTextual() && !value.asText().isBlank()) {
-                return value.asText();
-            }
-        }
-        return "";
     }
 
     private static IllegalStateException invalidResponse(String reason) {
