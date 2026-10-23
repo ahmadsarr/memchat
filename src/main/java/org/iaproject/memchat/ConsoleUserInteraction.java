@@ -16,7 +16,7 @@ public class ConsoleUserInteraction implements UserInteraction {
     @Override
     public String read() {
         System.out.print("User >");
-        return scanner.nextLine();
+        return scanner.hasNextLine() ? scanner.nextLine() : null;
     }
 
     @Override
