@@ -155,6 +155,71 @@ class AgentRunLifecycleTest {
         }
     }
 
+    @Test
+    void preCancelledRunDoesNotContactTheModelOrChangeMemory() throws Exception {
+        var cancellation = new AgentCancellation();
+        cancellation.cancel();
+        var memory = manager();
+        try (var loop = new AgentLoop(1, (messages, tools) -> {
+            fail("Cancelled run must not contact the model");
+            return answer();
+        }, memory)) {
+            assertThrows(java.util.concurrent.CancellationException.class,
+                    () -> loop.run("cancelled", cancellation));
+            assertFalse(memory.context().contains(LLmApiClient.ChatMessage.user("cancelled")));
+            assertFalse(Thread.currentThread().isInterrupted());
+        }
+    }
+
+    @Test
+    void cancelsFromAnotherThreadWithoutInterruptingOrPoisoningThePooledWorker() throws Exception {
+        var cancellation = new AgentCancellation();
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var calls = new AtomicInteger();
+        var workerThread = new java.util.concurrent.atomic.AtomicReference<Thread>();
+        var tool = new SideEffectTool();
+        var loop = new AgentLoop(2, (messages, tools) -> {
+            if (calls.incrementAndGet() == 1) {
+                workerThread.set(Thread.currentThread());
+                entered.countDown();
+                try {
+                    if (!release.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("test timed out");
+                } catch (InterruptedException e) {
+                    throw new AssertionError("Cooperative cancellation must not interrupt the worker", e);
+                }
+                return new LLmApiClient.ChatResponse(null,
+                        List.of(new LLmApiClient.ToolCall("one", "perform", "{}")));
+            }
+            return answer();
+        }, manager(), tool);
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var active = executor.submit(() -> { loop.run("first", cancellation); return null; });
+            try {
+                assertTrue(entered.await(2, TimeUnit.SECONDS));
+                cancellation.cancel();
+                assertTrue(cancellation.isCancelled());
+                assertFalse(active.isDone(), "An in-flight client call remains cooperative");
+            } finally {
+                release.countDown();
+            }
+            var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> active.get(2, TimeUnit.SECONDS));
+            assertInstanceOf(java.util.concurrent.CancellationException.class, failure.getCause());
+            assertEquals(0, tool.calls.get());
+            executor.submit(() -> {
+                assertSame(workerThread.get(), Thread.currentThread());
+                assertFalse(Thread.currentThread().isInterrupted());
+                loop.run("next request", new AgentCancellation());
+                return null;
+            }).get(2, TimeUnit.SECONDS);
+            assertEquals(2, calls.get());
+        } finally {
+            release.countDown();
+            loop.close();
+        }
+    }
+
     public static class SideEffectTool {
         final AtomicInteger calls = new AtomicInteger();
         @Tool(description = "Perform a side effect")

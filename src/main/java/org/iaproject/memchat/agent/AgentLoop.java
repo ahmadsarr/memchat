@@ -54,6 +54,13 @@ public class AgentLoop implements AutoCloseable {
     }
 
     public void run(String instruction) throws InterruptedException, JsonProcessingException {
+        run(instruction, new AgentCancellation());
+    }
+
+    /** Runs synchronously; cancellation is checked between operations, not inside blocking calls. */
+    public void run(String instruction, AgentCancellation cancellation)
+            throws InterruptedException, JsonProcessingException {
+        Objects.requireNonNull(cancellation, "cancellation");
         if (instruction == null || instruction.isBlank()) {
             throw new IllegalArgumentException("instruction must not be empty");
         }
@@ -65,16 +72,16 @@ public class AgentLoop implements AutoCloseable {
             running = true;
         }
         try {
-            checkInterrupted();
+            checkCancellation(cancellation);
             addMessage(ChatMessage.user(instruction));
             for (int i = 0; i < maxStep; i++) {
-                checkInterrupted();
+                checkCancellation(cancellation);
                 List<ChatMessage> context = getContext();
-                checkInterrupted();
+                checkCancellation(cancellation);
                 ChatResponse response = client.complete(context, actionExecutor.getToolsDescriptions());
-                checkInterrupted();
+                checkCancellation(cancellation);
                 AgentDecision decision = agentProcessor.process(response);
-                checkInterrupted();
+                checkCancellation(cancellation);
                 if (decision == AgentDecision.COMPLETE) {
                     eventDispatcher.awaitPendingEvents();
                     return;
@@ -92,10 +99,11 @@ public class AgentLoop implements AutoCloseable {
         }
     }
 
-    private static void checkInterrupted() throws InterruptedException {
+    private static void checkCancellation(AgentCancellation cancellation) throws InterruptedException {
         if (Thread.interrupted()) {
             throw new InterruptedException("Agent execution interrupted");
         }
+        cancellation.throwIfCancelled();
     }
 
     private void requireOpen() {
@@ -130,7 +138,7 @@ public class AgentLoop implements AutoCloseable {
                 return;
             }
             if (running) {
-                throw new IllegalStateException("Interrupt and finish the active run before closing the agent");
+                throw new IllegalStateException("Cancel and finish the active run before closing the agent");
             }
             closed = true;
         }
