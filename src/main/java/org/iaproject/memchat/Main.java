@@ -1,6 +1,5 @@
 package org.iaproject.memchat;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import org.iaproject.memchat.agent.AgentBuilder;
 import org.iaproject.memchat.agent.AgentLoop;
 import org.iaproject.memchat.cli.MemchatArg;

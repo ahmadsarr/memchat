@@ -11,6 +11,7 @@ import org.iaproject.memchat.tools.ToolParser;
 
 import java.util.Objects;
 import java.util.List;
+import java.util.Collection;
 
 public class AgentLoop {
     private final int maxStep;
@@ -20,6 +21,8 @@ public class AgentLoop {
     private final MemoryManager memoryManager;
     private final AgentProcessor agentProcessor;
     private final AgentEventDispatcher eventDispatcher;
+    private final List<AutoCloseable> resources;
+    private boolean closed;
 
     public AgentLoop(
             int maxStep,
@@ -27,9 +30,20 @@ public class AgentLoop {
             MemoryManager memoryManager,
             Object... tools
     ) {
+        this(maxStep, client, memoryManager, List.of(), tools);
+    }
+
+    public AgentLoop(
+            int maxStep,
+            LLmApiClient client,
+            MemoryManager memoryManager,
+            Collection<? extends AutoCloseable> resources,
+            Object... tools
+    ) {
         this.maxStep = maxStep;
         this.client = Objects.requireNonNull(client);
         this.memoryManager = Objects.requireNonNull(memoryManager);
+        this.resources = List.copyOf(resources);
         this.mapper = new ObjectMapper();
         this.actionExecutor = new ActionExecutor(ToolParser.parse(List.of(tools)));
         this.agentProcessor = new AgentProcessor(memoryManager, actionExecutor, mapper);
@@ -85,7 +99,26 @@ public class AgentLoop {
     }
 
     public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
         eventDispatcher.close();
+        RuntimeException failure = null;
+        for (AutoCloseable resource : resources.reversed()) {
+            try {
+                resource.close();
+            } catch (Exception exception) {
+                if (failure == null) {
+                    failure = new IllegalStateException("Unable to close agent resources", exception);
+                } else {
+                    failure.addSuppressed(exception);
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
     }
 
 }

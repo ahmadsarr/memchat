@@ -45,7 +45,7 @@ final class LuceneBm25Searcher implements SearchReader {
             Query parsedQuery = new QueryParser(
                     LuceneIndex.BODY,
                     index.analyzer()
-            ).parse(query);
+            ).parse(QueryParser.escape(query));
             TopDocs topDocs = searcher.search(parsedQuery, limit);
             List<SearchResult> documents = new ArrayList<>();
 

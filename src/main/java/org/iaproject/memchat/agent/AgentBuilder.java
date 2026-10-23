@@ -4,14 +4,13 @@ import org.iaproject.memchat.ConsoleUserInteraction;
 import org.iaproject.memchat.UserInteraction;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.llm.OpenAICompatibleClient;
+import org.iaproject.memchat.llm.ApiClientObservation;
+import org.iaproject.memchat.llm.Slf4jApiClientObservation;
 import org.iaproject.memchat.memory.ArchivalMemoryRepository;
 import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.memory.MemoryToolsImpl;
 import org.iaproject.memchat.memory.RecallStorageRepository;
-import org.iaproject.memchat.memory.impl.ArchivalMemoryImpl;
-import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
-import org.iaproject.memchat.memory.impl.FileRecallStorageRepository;
-import org.iaproject.memchat.memory.impl.RecallStorageImpl;
+import org.iaproject.memchat.memory.impl.*;
 import org.iaproject.memchat.memory.strategy.OpenAICompactStrategy;
 import org.iaproject.memchat.tools.UserInteractionTools;
 
@@ -26,6 +25,7 @@ public class AgentBuilder {
     private LLmApiClient client;
     private MemoryManager memoryManager;
     private UserInteraction userInteraction = new ConsoleUserInteraction();
+    private ApiClientObservation observation = new Slf4jApiClientObservation();
     private int maxSteps = 50;
     private final List<Object> tools = new ArrayList<>();
     private RecallStorageRepository recallStorageRepository;
@@ -69,6 +69,11 @@ public class AgentBuilder {
         return this;
     }
 
+    public AgentBuilder observation(ApiClientObservation observation) {
+        this.observation = Objects.requireNonNull(observation);
+        return this;
+    }
+
     public AgentBuilder maxSteps(int maxSteps) {
         if (maxSteps < 1) {
             throw new IllegalArgumentException("maxSteps must be positive");
@@ -105,16 +110,28 @@ public class AgentBuilder {
                 : new OpenAICompatibleClient(
                 require(baseUrl, "baseUrl"),
                 require(model, "model"),
-                apiKey
+                apiKey,
+                observation
         );
 
         MemoryManager agentMemory = memoryManager;
+        AutoCloseable archivalResource = null;
         if (agentMemory == null) {
+            ArchivalMemoryRepository selectedArchivalRepository = archivalMemoryRepository;
+            if (selectedArchivalRepository == null) {
+                try {
+                    selectedArchivalRepository = new LuceneArchivalMemoryRepository();
+                } catch (java.io.IOException exception) {
+                    throw new IllegalStateException("Unable to open Lucene archival memory", exception);
+                }
+            }
+            if (selectedArchivalRepository instanceof AutoCloseable closeable) {
+                archivalResource = closeable;
+            }
             agentMemory = new MemoryManager(
                     new RecallStorageImpl(recallStorageRepository != null
                             ? recallStorageRepository : new FileRecallStorageRepository()),
-                    new ArchivalMemoryImpl(archivalMemoryRepository != null
-                            ? archivalMemoryRepository : new FileArchivalMemoryRepository()),
+                    new ArchivalMemoryImpl(selectedArchivalRepository),
                     new OpenAICompactStrategy(llmClient)
             );
         }
@@ -127,6 +144,7 @@ public class AgentBuilder {
                 maxSteps,
                 llmClient,
                 agentMemory,
+                archivalResource == null ? List.of() : List.of(archivalResource),
                 registeredTools.toArray()
         );
     }
