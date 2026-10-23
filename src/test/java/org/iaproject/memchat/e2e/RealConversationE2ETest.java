@@ -59,7 +59,7 @@ class RealConversationE2ETest {
                 "The real recall storage was not created: " + transcriptFile);
     }
 
-    private String runSession(List<Question> questions, String model, String baseUrl,
+    private SessionResult runSession(List<Question> questions, String model, String baseUrl,
                               String apiKey, String maxSteps) throws Exception {
         String conversation = String.join(System.lineSeparator(),
                 questions.stream().map(Question::q).toList())
