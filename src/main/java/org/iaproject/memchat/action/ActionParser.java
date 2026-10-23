@@ -8,7 +8,7 @@ public class ActionParser {
     public record Action(String thought, String name, JsonNode args) {
     }
 
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = ActionJson.mapper();
 
     public Action parse(String response) {
         String thought = extractThought(response);
