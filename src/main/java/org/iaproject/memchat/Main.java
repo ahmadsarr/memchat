@@ -32,14 +32,13 @@ public class Main {
         if (shouldExit(instruction)) {
             return;
         }
-        AgentLoop agentLoop = AgentBuilder.builder()
+        try (AgentLoop agentLoop = AgentBuilder.builder()
                 .baseUrl(memchatArg.baseUrl)
                 .model(memchatArg.model)
                 .apiKey(memchatArg.apiKey)
                 .maxSteps(memchatArg.maxSteps)
                 .userInteraction(console)
-                .build();
-        try {
+                .build()) {
             agentLoop.subscribe(event -> {
                 switch (event.type()) {
                     case AGENT_MESSAGE, RUN_COMPLETED -> { /* Printed from the direct result below. */ }
@@ -61,8 +60,6 @@ public class Main {
                 }
                 instruction = console.read();
             }
-        } finally {
-            agentLoop.close();
         }
     }
 

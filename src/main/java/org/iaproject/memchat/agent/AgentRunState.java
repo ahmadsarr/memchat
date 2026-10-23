@@ -1,9 +1,6 @@
 package org.iaproject.memchat.agent;
 
+/** Terminal outcomes of a synchronous run, not executor or task states. */
 public enum AgentRunState {
-    CREATED, RUNNING, CANCELLING, SUCCEEDED, CANCELLED, FAILED, LIMIT_REACHED;
-
-    public boolean isTerminal() {
-        return this == SUCCEEDED || this == CANCELLED || this == FAILED || this == LIMIT_REACHED;
-    }
+    SUCCEEDED, CANCELLED, FAILED, LIMIT_REACHED
 }

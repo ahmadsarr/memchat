@@ -26,7 +26,8 @@ key is needed.
 
 ## Agent lifecycle and results
 
-`AgentLoop.run(String)` returns an `AgentRunResult` directly. For asynchronous
-execution, configure an application-owned executor and use `submit(String)`.
-See [the lifecycle contract](docs/agent-lifecycle.md) for states, cancellation,
-graceful closure, memory recovery, server integration, and migration notes.
+`AgentLoop.run(String)` synchronously returns an `AgentRunResult` on the caller's
+thread. Sessions are not thread-safe or reentrant: the application owns exclusive
+access, asynchronous execution and shutdown coordination. Use `try-with-resources`
+to close the session at the end of a conversation. See [the lifecycle contract](docs/agent-lifecycle.md)
+for results, interruption, event delivery, memory recovery, and migration notes.

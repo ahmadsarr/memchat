@@ -27,7 +27,6 @@ public class AgentBuilder {
     private MemoryManager memoryManager;
     private UserInteraction userInteraction = new ConsoleUserInteraction();
     private int maxSteps = 50;
-    private java.util.concurrent.Executor executor;
     private final List<Object> tools = new ArrayList<>();
     private RecallStorageRepository recallStorageRepository;
     private ArchivalMemoryRepository archivalMemoryRepository;
@@ -100,12 +99,6 @@ public class AgentBuilder {
         return this;
     }
 
-    /** Executor ownership remains with the application. Required only for submit(). */
-    public AgentBuilder executor(java.util.concurrent.Executor executor) {
-        this.executor = Objects.requireNonNull(executor);
-        return this;
-    }
-
     public AgentLoop build() {
         LLmApiClient llmClient = client != null
                 ? client
@@ -134,8 +127,7 @@ public class AgentBuilder {
                 maxSteps,
                 llmClient,
                 agentMemory,
-                registeredTools,
-                executor
+                registeredTools.toArray()
         );
     }
 

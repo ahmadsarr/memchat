@@ -3,7 +3,7 @@ package org.iaproject.memchat.agent;
 import java.util.Objects;
 import java.util.UUID;
 
-/** The single terminal outcome of an admitted run; independent of event delivery. */
+/** The terminal outcome of a synchronous run; independent of event delivery. */
 public record AgentRunResult(UUID runId, AgentRunState status, String finalResponse,
                              Failure failure, int stepsExecuted, boolean recoveryRequired) {
     public enum Stage { INSTRUCTION, CONTEXT, MODEL, RESPONSE }
@@ -19,7 +19,6 @@ public record AgentRunResult(UUID runId, AgentRunState status, String finalRespo
     public AgentRunResult {
         Objects.requireNonNull(runId);
         Objects.requireNonNull(status);
-        if (!status.isTerminal()) throw new IllegalArgumentException("Result must be terminal");
         if ((status == AgentRunState.SUCCEEDED) != (finalResponse != null))
             throw new IllegalArgumentException("Only success must have a final response");
         if ((status == AgentRunState.FAILED) != (failure != null))
