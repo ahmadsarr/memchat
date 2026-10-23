@@ -10,6 +10,43 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MemoryManagerTest {
     @Test
+    void compactsAShortFullContextWithoutDeletingRecall() {
+        var recall = new StubRecallStorage();
+        var manager = new MemoryManager(recall, new StubArchivalMemory(),
+                (summary, messages) -> "short summary");
+        manager.addMessage(LLmApiClient.ChatMessage.user("x".repeat(30_000)));
+        assertThrows(MemoryFullException.class, manager::context);
+
+        manager.compact();
+
+        assertTrue(manager.context().stream().anyMatch(message ->
+                "short summary".equals(message.content())));
+        assertEquals(1, recall.added);
+    }
+
+    @Test
+    void rejectsAnExpandingSummaryBeforeEvictingMessages() {
+        var selected = new java.util.ArrayList<List<LLmApiClient.ChatMessage>>();
+        var attempts = new java.util.concurrent.atomic.AtomicInteger();
+        var manager = new MemoryManager(new StubRecallStorage(), new StubArchivalMemory(),
+                (summary, messages) -> {
+                    selected.add(List.copyOf(messages));
+                    assertEquals("", summary);
+                    return attempts.getAndIncrement() == 0 ? "x".repeat(40_000) : "short summary";
+                });
+        for (int i = 0; i < 5; i++) {
+            manager.addMessage(LLmApiClient.ChatMessage.user("x".repeat(6_000)));
+        }
+
+        assertThrows(IllegalStateException.class, manager::compact);
+        manager.compact();
+
+        assertEquals(selected.get(0), selected.get(1));
+        assertEquals(5, selected.get(1).size());
+        assertDoesNotThrow(manager::context);
+    }
+
+    @Test
     void delegatesArchivalOperationsAndAddsMessagesToWorkingContext() {
         var archival = new StubArchivalMemory();
         var recall = new StubRecallStorage();

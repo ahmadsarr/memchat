@@ -4,9 +4,11 @@ import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.memory.WorkingMemory;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class WorkingMemoryImpl implements WorkingMemory {
 
@@ -30,12 +32,30 @@ public class WorkingMemoryImpl implements WorkingMemory {
     }
 
     @Override
-    public List<LLmApiClient.ChatMessage> selectEvictionCandidates() {
-        return messages.subList(0, 5);
+    public synchronized List<LLmApiClient.ChatMessage> selectEvictionCandidates() {
+        Set<String> pendingToolCalls = new HashSet<>();
+        int safeEnd = 0;
+        for (int i = 0; i < messages.size(); i++) {
+            LLmApiClient.ChatMessage message = messages.get(i);
+            if (message.role() == LLmApiClient.Role.ASSISTANT && message.toolCalls() != null) {
+                message.toolCalls().forEach(call -> pendingToolCalls.add(call.id()));
+            }
+            if (message.role() == LLmApiClient.Role.TOOL) {
+                pendingToolCalls.remove(message.toolCallId());
+            }
+            // A tool invocation and all its results must be evicted together.
+            if (pendingToolCalls.isEmpty()) {
+                safeEnd = i + 1;
+                if (safeEnd >= 5) {
+                    break;
+                }
+            }
+        }
+        return List.copyOf(messages.subList(0, safeEnd));
     }
 
     @Override
-    public String getSummary() {
+    public synchronized String getSummary() {
         return summary;
     }
 
