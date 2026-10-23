@@ -106,6 +106,7 @@ public class OpenAICompatibleClient implements LLmApiClient {
             throw invalidResponse("content must be text or null");
         }
         String content = contentNode.asText("");
+
         List<ToolCall> toolCalls = new ArrayList<>();
         JsonNode callsNode = message.path("tool_calls");
         if (!callsNode.isMissingNode() && !callsNode.isNull() && !callsNode.isArray()) {
@@ -121,7 +122,24 @@ public class OpenAICompatibleClient implements LLmApiClient {
             toolCalls.add(new ToolCall(call.path("id").asText(),
                     function.path("name").asText(), function.path("arguments").asText()));
         }
+
+        if (content.isBlank() && toolCalls.isEmpty()) {
+            content = firstText(message);
+            if (content.isBlank()) {
+                throw invalidResponse("empty assistant message");
+            }
+        }
         return new ChatResponse(content, List.copyOf(toolCalls));
+    }
+
+    private static String firstText(JsonNode node) {
+        for (String field : new String[]{"reasoning", "reasoning_content"}) {
+            JsonNode value = node.path(field);
+            if (value.isTextual() && !value.asText().isBlank()) {
+                return value.asText();
+            }
+        }
+        return "";
     }
 
     private static IllegalStateException invalidResponse(String reason) {
