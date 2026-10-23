@@ -34,7 +34,7 @@ class ActionExecutorTest {
 
     @Test
     void executesValidJsonArguments() {
-        var result = executor.execute("echo", "{\"arg0\":\"hello\"}");
+        var result = executor.execute("echo", "{\"value\":\"hello\"}");
 
         assertTrue(result.success(), result.toString());
         assertEquals("hello", result.result());
