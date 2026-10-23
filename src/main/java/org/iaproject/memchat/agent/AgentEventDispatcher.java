@@ -76,6 +76,8 @@ public final class AgentEventDispatcher implements AutoCloseable {
         }
     }
 
+    boolean isDelivering() { return delivering.get(); }
+
     @Override
     public void close() {
         synchronized (pendingMonitor) {

@@ -9,12 +9,14 @@ import org.iaproject.memchat.tools.ToolResult;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 
 public class AgentProcessor {
 
     private final MemoryManager memoryManager;
     private final ActionExecutor actionExecutor;
     private final ObjectMapper mapper;
+    private boolean recoveryRequired;
     private Consumer<AgentEvent> eventPublisher = event -> {};
 
     public AgentProcessor(MemoryManager memoryManager, ActionExecutor actionExecutor, ObjectMapper mapper) {
@@ -28,6 +30,17 @@ public class AgentProcessor {
     }
 
     public AgentDecision process(LLmApiClient.ChatResponse response) throws JsonProcessingException {
+        AgentStepResult step = processResult(response, () -> false);
+        if (step.decision() == AgentDecision.COMPLETE) {
+            publish(AgentEvent.Type.AGENT_MESSAGE, step.finalResponse());
+        }
+        return step.decision();
+    }
+
+    boolean recoveryRequired() { return recoveryRequired; }
+
+    AgentStepResult processResult(LLmApiClient.ChatResponse response, BooleanSupplier cancelled)
+            throws JsonProcessingException {
         if (response == null) {
             throw new IllegalStateException("The LLM returned no response");
         }
@@ -35,9 +48,10 @@ public class AgentProcessor {
             if (response.content() == null || response.content().isBlank()) {
                 throw new IllegalStateException("The LLM returned no answer or tool call");
             }
+            recoveryRequired = true;
             addMessage(LLmApiClient.ChatMessage.assistant(response.content()));
-            publish(AgentEvent.Type.AGENT_MESSAGE, response.content());
-            return AgentDecision.COMPLETE;
+            recoveryRequired = false;
+            return new AgentStepResult(AgentDecision.COMPLETE, response.content());
         }
 
         if (response.toolCalls().size() != 1) {
@@ -52,29 +66,32 @@ public class AgentProcessor {
             throw new IllegalStateException("A tool call requires a non-empty id and name");
         }
 
+        recoveryRequired = true;
         addMessage(LLmApiClient.ChatMessage.assistant(
                 response.content(),
                 List.of(call)
         ));
 
-        publish(AgentEvent.Type.TOOL_EXECUTION, call.name());
-
-        ToolResult result = actionExecutor.execute(
-                call.name(),
-                call.arguments()
-        );
+        // Even a cancelled call needs a matching result once recorded in the conversation.
+        ToolResult result;
+        if (cancelled.getAsBoolean()) {
+            result = ToolResult.failure(call.name(), "Cancelled before tool execution");
+        } else {
+            publish(AgentEvent.Type.TOOL_EXECUTION, call.name());
+            result = actionExecutor.execute(call.name(), call.arguments());
+        }
 
         addMessage(LLmApiClient.ChatMessage.tool(
                 call.id(),
                 mapper.writeValueAsString(result)
         ));
 
+        recoveryRequired = false;
         if (result.success() && actionExecutor.isTerminal(call.name())) {
-            publish(AgentEvent.Type.AGENT_MESSAGE, result.result());
-            return AgentDecision.COMPLETE;
+            return new AgentStepResult(AgentDecision.COMPLETE, result.result());
         }
 
-        return AgentDecision.CONTINUE;
+        return new AgentStepResult(AgentDecision.CONTINUE, null);
     }
 
     public boolean hasToolCall(List<LLmApiClient.ToolCall> toolCalls) {

@@ -23,3 +23,10 @@ with those declared names rather than compiler-generated names such as `arg0`.
 The GitHub Actions workflow runs the same verification on pull requests and master.
 The tests use temporary memory files and local HTTP servers; no LLM service or API
 key is needed.
+
+## Agent lifecycle and results
+
+`AgentLoop.run(String)` returns an `AgentRunResult` directly. For asynchronous
+execution, configure an application-owned executor and use `submit(String)`.
+See [the lifecycle contract](docs/agent-lifecycle.md) for states, cancellation,
+graceful closure, memory recovery, server integration, and migration notes.
