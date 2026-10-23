@@ -1,1 +1,9 @@
-[]
+[ {
+  "id" : "45eca08c-e015-4dee-9c57-ec4b98f078cc",
+  "message" : {
+    "role" : "USER",
+    "content" : "Bonjour",
+    "toolCalls" : null,
+    "toolCallId" : null
+  }
+} ]

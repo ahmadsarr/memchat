@@ -26,7 +26,7 @@ public class Main {
             return;
         }
 
-        UserInteraction console = new ConsoleUserInteraction();
+        UserInteraction console = new StreamUserInteraction(System.in, System.out);
         String instruction = memchatArg.instruction != null ? memchatArg.instruction : console.read();
         while (instruction != null && instruction.isBlank()) {
             instruction = console.read();

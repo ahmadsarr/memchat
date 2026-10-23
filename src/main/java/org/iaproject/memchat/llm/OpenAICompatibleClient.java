@@ -65,6 +65,7 @@ public class OpenAICompatibleClient implements LLmApiClient {
                 + ", tools=" + tools.size() + ")");
         try {
             HttpResponse<String> response = this.httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString());
+            System.out.println(response.body());
             long durationMillis = elapsedMillis(startedAt);
             if (!isSuccessfull(response)) {
                 LOGGER.warning("LLM request failed (status=" + response.statusCode()

@@ -4,8 +4,6 @@ import org.iaproject.memchat.ConsoleUserInteraction;
 import org.iaproject.memchat.UserInteraction;
 import org.iaproject.memchat.llm.LLmApiClient;
 import org.iaproject.memchat.llm.OpenAICompatibleClient;
-import org.iaproject.memchat.llm.ApiClientObservation;
-import org.iaproject.memchat.llm.Slf4jApiClientObservation;
 import org.iaproject.memchat.memory.ArchivalMemoryRepository;
 import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.memory.MemoryToolsImpl;
@@ -25,7 +23,6 @@ public class AgentBuilder {
     private LLmApiClient client;
     private MemoryManager memoryManager;
     private UserInteraction userInteraction = new ConsoleUserInteraction();
-    private ApiClientObservation observation = new Slf4jApiClientObservation();
     private int maxSteps = 50;
     private final List<Object> tools = new ArrayList<>();
     private RecallStorageRepository recallStorageRepository;
@@ -69,11 +66,6 @@ public class AgentBuilder {
         return this;
     }
 
-    public AgentBuilder observation(ApiClientObservation observation) {
-        this.observation = Objects.requireNonNull(observation);
-        return this;
-    }
-
     public AgentBuilder maxSteps(int maxSteps) {
         if (maxSteps < 1) {
             throw new IllegalArgumentException("maxSteps must be positive");
@@ -110,8 +102,7 @@ public class AgentBuilder {
                 : new OpenAICompatibleClient(
                 require(baseUrl, "baseUrl"),
                 require(model, "model"),
-                apiKey,
-                observation
+                apiKey
         );
 
         MemoryManager agentMemory = memoryManager;

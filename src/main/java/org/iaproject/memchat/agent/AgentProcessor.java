@@ -43,8 +43,9 @@ public class AgentProcessor {
         }
 
         if (response.toolCalls().size() != 1) {
-            addMessage(LLmApiClient.ChatMessage.system("Error: The agent must return exactly one tool call per response"));
-            return AgentDecision.CONTINUE;
+            throw new IllegalStateException(
+                    "The agent must return exactly one tool call per response"
+            );
         }
 
         LLmApiClient.ToolCall call = response.toolCalls().getFirst();
