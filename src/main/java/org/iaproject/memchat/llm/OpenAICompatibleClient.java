@@ -121,9 +121,6 @@ public class OpenAICompatibleClient implements LLmApiClient {
             toolCalls.add(new ToolCall(call.path("id").asText(),
                     function.path("name").asText(), function.path("arguments").asText()));
         }
-        if (toolCalls.isEmpty() && (content.isBlank() || "tool_calls".equals(finishReason))) {
-            throw invalidResponse("no usable answer or tool call");
-        }
         return new ChatResponse(content, List.copyOf(toolCalls));
     }
 
