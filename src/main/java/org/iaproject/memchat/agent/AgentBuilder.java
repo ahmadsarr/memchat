@@ -28,8 +28,8 @@ public class AgentBuilder {
     private UserInteraction userInteraction = new ConsoleUserInteraction();
     private int maxSteps = 50;
     private final List<Object> tools = new ArrayList<>();
-    private RecallStorageRepository recallStorageRepository = new FileRecallStorageRepository();
-    private ArchivalMemoryRepository archivalMemoryRepository = new FileArchivalMemoryRepository();
+    private RecallStorageRepository recallStorageRepository;
+    private ArchivalMemoryRepository archivalMemoryRepository;
 
     private AgentBuilder() {
 
@@ -108,22 +108,25 @@ public class AgentBuilder {
                 apiKey
         );
 
-        if (memoryManager == null) {
-            memoryManager = new MemoryManager(
-                    new RecallStorageImpl(recallStorageRepository),
-                    new ArchivalMemoryImpl(archivalMemoryRepository),
+        MemoryManager agentMemory = memoryManager;
+        if (agentMemory == null) {
+            agentMemory = new MemoryManager(
+                    new RecallStorageImpl(recallStorageRepository != null
+                            ? recallStorageRepository : new FileRecallStorageRepository()),
+                    new ArchivalMemoryImpl(archivalMemoryRepository != null
+                            ? archivalMemoryRepository : new FileArchivalMemoryRepository()),
                     new OpenAICompactStrategy(llmClient)
             );
         }
 
         List<Object> registeredTools = new ArrayList<>(tools);
-        registeredTools.add(new MemoryToolsImpl(memoryManager));
+        registeredTools.add(new MemoryToolsImpl(agentMemory));
         registeredTools.add(new UserInteractionTools(userInteraction));
 
         return new AgentLoop(
                 maxSteps,
                 llmClient,
-                memoryManager,
+                agentMemory,
                 registeredTools.toArray()
         );
     }
