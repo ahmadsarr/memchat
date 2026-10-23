@@ -1,8 +1,6 @@
 package org.iaproject.memchat.action;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.iaproject.memchat.tools.ToolParser.*;
@@ -16,10 +14,7 @@ import java.util.stream.Collectors;
 
 public class ActionExecutor {
     private final Map<String, ToolRegister> cachedRegister;
-    private static final ObjectMapper mapper = new ObjectMapper()
-            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
-            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-            .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
+    private static final ObjectMapper mapper = ActionJson.mapper();
 
     public ActionExecutor(List<ToolRegister> registers) {
         this.cachedRegister = registers.stream()

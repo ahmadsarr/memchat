@@ -1,8 +1,6 @@
 package org.iaproject.memchat.action;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -10,10 +8,7 @@ public class ActionParser {
     public record Action(String thought, String name, JsonNode args) {
     }
 
-    private static final ObjectMapper mapper = new ObjectMapper()
-            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
-            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-            .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
+    private static final ObjectMapper mapper = ActionJson.mapper();
 
     public Action parse(String response) {
         String thought = extractThought(response);
