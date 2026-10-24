@@ -3,12 +3,16 @@ package org.iaproject.memchat.tui;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.TerminalPosition;
+import com.googlecode.lanterna.TerminalTextUtils;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.screen.TerminalScreen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.googlecode.lanterna.terminal.Terminal;
+import com.googlecode.lanterna.terminal.ansi.StreamBasedTerminal;
+import com.googlecode.lanterna.terminal.ansi.UnixLikeTerminal;
+import com.googlecode.lanterna.terminal.swing.TerminalEmulatorDeviceConfiguration;
 import com.googlecode.lanterna.graphics.TextGraphics;
 import org.iaproject.memchat.agent.AgentEvent;
 import org.iaproject.memchat.agent.AgentLoop;
@@ -21,6 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -33,11 +39,14 @@ public final class TuiApplication {
     private final String model;
     private final TuiUserInteraction interaction;
     private final LongSupplier nanoTime;
+    private final Supplier<String> clipboard;
     private final Map<TuiState.ToolActivity, Long> completedTools = new IdentityHashMap<>();
     private String transientToolNotice;
     private long toolNoticeStartedAt;
     private TuiState state;
-    private String input = "";
+    private final StringBuilder input = new StringBuilder();
+    private boolean inputWasPasted;
+    private boolean receivingPaste;
     private final List<String> history = new ArrayList<>();
     private int historyIndex;
     private String notice;
@@ -58,15 +67,28 @@ public final class TuiApplication {
     }
 
     TuiApplication(AgentLoop agent, String model, TuiUserInteraction interaction, LongSupplier nanoTime) {
+        this(agent, model, interaction, nanoTime, TuiClipboard::readText);
+    }
+
+    TuiApplication(AgentLoop agent, String model, TuiUserInteraction interaction, LongSupplier nanoTime,
+                   Supplier<String> clipboard) {
         this.agent = agent;
         this.model = model;
         this.interaction = interaction;
         this.nanoTime = nanoTime;
+        this.clipboard = clipboard;
         this.state = TuiState.initial(model);
     }
 
     public void run(String initialInstruction) throws IOException {
-        try (Terminal terminal = new DefaultTerminalFactory().createTerminal()) {
+        var factory = new DefaultTerminalFactory(System.out, System.in, StandardCharsets.UTF_8)
+                .setUnixTerminalCtrlCBehaviour(UnixLikeTerminal.CtrlCBehaviour.TRAP)
+                .setInputTimeout(1)
+                .setTerminalEmulatorDeviceConfiguration(TerminalEmulatorDeviceConfiguration.getDefault()
+                        .withClipboardAvailable(false));
+        try (Terminal terminal = factory.createTerminal();
+             BracketedPaste paste = terminal instanceof StreamBasedTerminal stream
+                     ? BracketedPaste.enable(stream.getInputDecoder(), System.out) : null) {
             run(new TerminalScreen(terminal), initialInstruction);
         }
     }
@@ -108,7 +130,7 @@ public final class TuiApplication {
                     notice = currentQuestion;
                     dirty = true;
                 }
-                for (int keyCount = 0; keyCount < 32; keyCount++) {
+                for (int keyCount = 0; keyCount < (receivingPaste ? 4096 : 32); keyCount++) {
                     KeyStroke key = screen.pollInput();
                     if (key == null) break;
                     handleKey(key, currentRun, executor);
@@ -177,7 +199,35 @@ public final class TuiApplication {
 
     private void handleKey(KeyStroke key, AtomicReference<TuiRunTask> currentRun,
                            ExecutorService executor) {
+        if (key instanceof BracketedPaste.Event paste) {
+            switch (paste.kind) {
+                case START -> {
+                    receivingPaste = true;
+                    notice = "Collage en cours…";
+                }
+                case TEXT -> appendPaste(paste.text);
+                case END -> {
+                    receivingPaste = false;
+                    notice = "Texte collé · Entrée pour envoyer";
+                }
+            }
+            return;
+        }
+        if (key.getKeyType() == KeyType.Insert && key.isShiftDown()) {
+            pasteClipboard();
+            return;
+        }
         if (key.isCtrlDown() && key.getKeyType() == KeyType.Character) {
+            if (Character.toLowerCase(key.getCharacter()) == 'v') {
+                pasteClipboard();
+                return;
+            }
+            if (key.getCharacter() == 'u') {
+                input.setLength(0);
+                inputWasPasted = false;
+                notice = null;
+                return;
+            }
             if (key.getCharacter() == 'c') {
                 TuiRunTask running = currentRun.get();
                 if (running != null && !running.hasExited() && !interruptRequested) {
@@ -207,12 +257,13 @@ public final class TuiApplication {
             return;
         }
         if (key.getKeyType() == KeyType.Backspace) {
-            if (!input.isEmpty()) input = input.substring(0, input.length() - 1);
+            if (!input.isEmpty()) input.delete(input.offsetByCodePoints(input.length(), -1), input.length());
+            if (input.isEmpty()) inputWasPasted = false;
             return;
         }
         if (key.getKeyType() == KeyType.Enter) {
             if (key.isAltDown()) {
-                input += "\n";
+                input.append('\n');
             } else {
                 submitInput(currentRun, executor);
             }
@@ -220,27 +271,54 @@ public final class TuiApplication {
         }
         if (key.getKeyType() == KeyType.Character && key.getCharacter() != null
                 && !Character.isISOControl(key.getCharacter())) {
-            input += key.getCharacter();
+            input.append(key.getCharacter());
+        }
+    }
+
+    private void appendPaste(String text) {
+        if (text != null && !text.isEmpty()) {
+            input.append(text);
+            inputWasPasted = true;
+        }
+    }
+
+    private void pasteClipboard() {
+        try {
+            String text = clipboard.get();
+            if (text == null || text.isEmpty()) {
+                notice = "Presse-papiers vide";
+                return;
+            }
+            appendPaste(text);
+            notice = "Texte collé · Entrée pour envoyer";
+        } catch (RuntimeException exception) {
+            notice = exception.getMessage();
         }
     }
 
     private void submitInput(AtomicReference<TuiRunTask> currentRun, ExecutorService executor) {
-        String value = input.strip();
-        input = "";
-        if (value.isEmpty()) return;
+        String value = input.toString();
+        boolean literalPrompt = inputWasPasted;
+        if (value.isBlank()) return;
         if (interaction != null && interaction.answerIfWaiting(value)) {
+            input.setLength(0);
+            inputWasPasted = false;
             questionDone();
             return;
         }
         SlashCommand command = SlashCommand.parse(value);
-        if (command.kind() != SlashCommand.Kind.NONE) {
+        if (!literalPrompt && command.kind() != SlashCommand.Kind.NONE) {
+            input.setLength(0);
+            inputWasPasted = false;
             handleCommand(command);
             return;
         }
         if (currentRun.get() != null && !currentRun.get().hasExited()) {
-            notice = "Une exécution est déjà en cours";
+            notice = "Une exécution est déjà en cours · saisie conservée";
             return;
         }
+        input.setLength(0);
+        inputWasPasted = false;
         submit(value, currentRun, executor);
     }
 
@@ -260,7 +338,7 @@ public final class TuiApplication {
     private void handleCommand(SlashCommand command) {
         switch (command.kind()) {
             case QUIT -> closing = true;
-            case HELP -> notice = "Commandes: /help /clear /model /quit · Alt+Entrée ajoute une ligne";
+            case HELP -> notice = "Commandes: /help /clear /model /quit · Ctrl+V coller · Ctrl+U effacer · Alt+Entrée ajouter une ligne";
             case CLEAR -> state = TuiReducer.clear(state);
             case MODEL -> notice = "Modèle: " + (command.argument().isBlank() ? model : command.argument());
             case UNKNOWN -> notice = "Commande inconnue: /" + command.argument();
@@ -275,13 +353,17 @@ public final class TuiApplication {
     private void previousHistory() {
         if (history.isEmpty()) return;
         historyIndex = Math.max(0, historyIndex - 1);
-        input = history.get(historyIndex);
+        input.setLength(0);
+        input.append(history.get(historyIndex));
+        inputWasPasted = true;
     }
 
     private void nextHistory() {
         if (history.isEmpty()) return;
         historyIndex = Math.min(history.size(), historyIndex + 1);
-        input = historyIndex == history.size() ? "" : history.get(historyIndex);
+        input.setLength(0);
+        if (historyIndex < history.size()) input.append(history.get(historyIndex));
+        inputWasPasted = !input.isEmpty();
     }
 
     private void draw(Screen screen) throws IOException {
@@ -321,11 +403,13 @@ public final class TuiApplication {
         graphics.setForegroundColor(TextColor.ANSI.CYAN);
         graphics.putString(0, height - 4, truncate(status, width));
         graphics.setForegroundColor(TextColor.ANSI.WHITE);
-        graphics.putString(0, height - 3, "╭─ input ─" + "─".repeat(Math.max(0, width - 11)));
-        graphics.putString(0, height - 2, "│ " + truncate(input, Math.max(0, width - 2)));
+        String label = "╭─ input · " + input.codePointCount(0, input.length()) + " caractères ─";
+        graphics.putString(0, height - 3, truncate(label, width));
+        String preview = InputPreview.render(input, Math.max(0, width - 2));
+        graphics.putString(0, height - 2, "│ " + preview);
         graphics.putString(0, height - 1, truncate(notice == null ? "Enter envoyer · Ctrl+C interrompre · /help" : notice, width));
         screen.setCursorPosition(new TerminalPosition(
-                Math.min(width - 1, 2 + input.length()), height - 2));
+                Math.min(width - 1, 2 + TerminalTextUtils.getColumnWidth(preview)), height - 2));
         screen.refresh();
     }
 
@@ -338,7 +422,10 @@ public final class TuiApplication {
                 case ERROR -> "Error > ";
                 case SYSTEM -> "System > ";
             };
-            for (String part : MarkdownRenderer.render(entry.text()).split("\\n", -1)) {
+            String displayedText = entry.role() == TuiState.Role.USER && entry.text().length() > 500
+                    ? InputPreview.render(entry.text(), 300) + " [" + entry.text().length() + " caractères]"
+                    : entry.text();
+            for (String part : MarkdownRenderer.render(displayedText).split("\\n", -1)) {
                 lines.addAll(wrap(prefix + stripAnsi(part), width));
                 prefix = "        ";
             }

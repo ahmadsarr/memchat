@@ -16,6 +16,8 @@ import org.iaproject.memchat.memory.RecallStorage;
 import org.iaproject.memchat.tools.UserInteractionTools;
 import org.iaproject.memchat.tools.Tool;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,11 +28,105 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Agent-level event sequence consumed by the same reducer as the TUI. */
 class TuiAgentIntegrationTest {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void previewsPastedTextAndSendsTheCompletePromptOnlyAfterEnter(boolean useClipboard) throws Exception {
+        String payload = "  /quit\r\n\t\u0003\033[A" + "long text ".repeat(1000) + "UNIQUE_TAIL\n  ";
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<String> submitted = new AtomicReference<>();
+        LLmApiClient client = (messages, tools) -> {
+            calls.incrementAndGet();
+            submitted.set(messages.getLast().content());
+            return new LLmApiClient.ChatResponse("Full prompt received", List.of());
+        };
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(1, client, memory);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            var ui = executor.submit(() -> {
+                new TuiApplication(loop, "mock", null, System::nanoTime, () -> payload).run(screen, null);
+                return null;
+            });
+            try {
+                screen.awaitSize(new TerminalSize(80, 24));
+                if (useClipboard) screen.keys.offer(new KeyStroke('v', true, false));
+                else screen.keys.addAll(BracketedPasteTest.decodePaste(payload));
+                screen.awaitFooter("Texte collé");
+                var preview = screen.awaitText(payload.codePointCount(0, payload.length()) + " caractères");
+                assertTrue(preview.text().contains("…"));
+                assertFalse(preview.text().contains("UNIQUE_TAIL"));
+                assertEquals(0, calls.get(), "Pasted newlines and shortcuts must not submit or close the UI");
+                screen.keys.offer(new KeyStroke(KeyType.Enter));
+                var response = screen.awaitText("Full prompt received");
+                assertEquals(payload, submitted.get(), "Whitespace and the hidden tail must reach the model unchanged");
+                assertEquals(1, calls.get());
+                assertFalse(response.text().contains("UNIQUE_TAIL"), "Long prompt history should also stay compact");
+            } finally {
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void reportsClipboardFailureWithoutInsertingTheShortcutAsText() throws Exception {
+        AtomicReference<String> submitted = new AtomicReference<>();
+        LLmApiClient client = (messages, tools) -> {
+            submitted.set(messages.getLast().content());
+            return new LLmApiClient.ChatResponse("Received", List.of());
+        };
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(1, client, memory);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            var ui = executor.submit(() -> {
+                new TuiApplication(loop, "mock", null, System::nanoTime,
+                        () -> { throw new IllegalStateException("Clipboard unavailable"); }).run(screen, null);
+                return null;
+            });
+            try {
+                screen.keys.offer(new KeyStroke('v', true, false));
+                screen.awaitFooter("Clipboard unavailable");
+                screen.enter("hello");
+                screen.awaitText("Received");
+                assertEquals("hello", submitted.get());
+            } finally {
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void clearsAPastedDraftAndStillRecognizesTypedCommands() throws Exception {
+        LLmApiClient client = (messages, tools) -> { throw new AssertionError("Draft must not be submitted"); };
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(1, client, memory);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            var ui = executor.submit(() -> {
+                new TuiApplication(loop, "mock", null, System::nanoTime, () -> "pasted draft").run(screen, null);
+                return null;
+            });
+            try {
+                screen.keys.offer(new KeyStroke('v', true, false));
+                screen.awaitFooter("Texte collé");
+                screen.keys.offer(new KeyStroke('u', true, false));
+                screen.awaitText("0 caractères");
+                screen.enter("/quit");
+                ui.get(5, TimeUnit.SECONDS);
+            } finally {
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+            }
+        }
+    }
+
     @Test
     void appliesTerminalResizesAndRecoversFromATinyWindow() throws Exception {
         LLmApiClient client = (messages, tools) -> { throw new AssertionError("No model call expected"); };
