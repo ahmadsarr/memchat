@@ -169,6 +169,14 @@ subscribes to the existing `AgentLoop` events and keeps the plain `Main` path
 unchanged. Use `/help`, `/clear`, `/model` or `/quit` from the TUI. Tool
 confirmation is intentionally not included yet.
 
+Scroll the transcript with PageUp/PageDown (one page with a one-line overlap),
+Home/End (first/latest page), or the mouse wheel (three lines per notch on
+terminals supporting mouse reporting). Up/Down still recall input history.
+The input area stays fixed. New messages follow the bottom only when already
+there; reading an older page preserves its top line. The status line shows the
+history position, and End resumes following. `/clear` also resets the viewport.
+Mouse reporting may require holding Shift for the terminal's native text selection.
+
 Paste with Ctrl+V (also Ctrl+Shift+V or Shift+Insert) when the application has
 access to a graphical clipboard. In an external terminal or SSH session, use
 that terminal's paste shortcut. Bracketed paste is enabled for ANSI terminals:

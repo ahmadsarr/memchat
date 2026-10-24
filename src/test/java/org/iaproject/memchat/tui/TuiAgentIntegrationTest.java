@@ -1,8 +1,11 @@
 package org.iaproject.memchat.tui;
 
 import com.googlecode.lanterna.TerminalSize;
+import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
+import com.googlecode.lanterna.input.MouseAction;
+import com.googlecode.lanterna.input.MouseActionType;
 import com.googlecode.lanterna.screen.TerminalScreen;
 import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
 import org.iaproject.memchat.agent.AgentEvent;
@@ -34,6 +37,92 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Agent-level event sequence consumed by the same reducer as the TUI. */
 class TuiAgentIntegrationTest {
+    @Test
+    void scrollsTheTranscriptWithKeyboardAndWheelWithoutChangingTheInputHistory() throws Exception {
+        String answer = longAnswer();
+        LLmApiClient client = (messages, tools) -> new LLmApiClient.ChatResponse(answer, List.of());
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(1, client, memory);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            var ui = executor.submit(() -> { new TuiApplication(loop, "mock").run(screen, "hello"); return null; });
+            try {
+                screen.awaitText("History line 59");
+                screen.keys.offer(new KeyStroke(KeyType.PageUp));
+                var page = screen.awaitFrame(frame -> frame.text().contains("Historique")
+                        && !frame.text().contains("History line 59"), "previous transcript page");
+                String firstLine = page.text().split("\n", -1)[0];
+                screen.keys.offer(new KeyStroke(KeyType.ArrowUp));
+                var recalled = screen.awaitText("│ hello");
+                assertEquals(firstLine, recalled.text().split("\n", -1)[0]);
+                screen.keys.offer(new KeyStroke(KeyType.PageDown));
+                assertTrue(screen.awaitText("History line 59").text().contains("│ hello"));
+                screen.keys.offer(new KeyStroke(KeyType.Home));
+                var beginning = screen.awaitText("History line 00");
+                assertTrue(beginning.text().startsWith("User > hello"));
+                screen.keys.offer(new KeyStroke(KeyType.End));
+                screen.awaitText("History line 59");
+                screen.keys.offer(new MouseAction(MouseActionType.SCROLL_UP, 4, new TerminalPosition(0, 0)));
+                screen.awaitFrame(frame -> frame.text().contains("Historique")
+                        && !frame.text().contains("History line 59"), "wheel up");
+                screen.keys.offer(new MouseAction(MouseActionType.SCROLL_DOWN, 5, new TerminalPosition(0, 0)));
+                assertTrue(screen.awaitText("History line 59").text().contains("│ hello"));
+            } finally {
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void newRepliesDoNotStealTheReadingPositionAndEndResumesFollowing() throws Exception {
+        CountDownLatch releaseReply = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        LLmApiClient client = (messages, tools) -> {
+            if (calls.getAndIncrement() == 0) return new LLmApiClient.ChatResponse(longAnswer(), List.of());
+            try {
+                if (!releaseReply.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Reply not released");
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(exception);
+            }
+            return new LLmApiClient.ChatResponse("New arrival\nSecond line", List.of());
+        };
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(1, client, memory);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            var ui = executor.submit(() -> { new TuiApplication(loop, "mock").run(screen, "hello"); return null; });
+            try {
+                screen.awaitText("History line 59");
+                screen.keys.offer(new KeyStroke(KeyType.Home));
+                screen.awaitText("Historique 1/61");
+                screen.enter("next");
+                screen.awaitText("Historique 1/62");
+                releaseReply.countDown();
+                var held = screen.awaitText("Historique 1/64");
+                assertTrue(held.text().startsWith("User > hello"));
+                assertFalse(held.text().contains("New arrival"));
+                screen.keys.offer(new KeyStroke(KeyType.End));
+                assertTrue(screen.awaitText("New arrival").text().contains("Build"));
+                screen.keys.offer(new KeyStroke(KeyType.Home));
+                screen.awaitText("Historique 1/64");
+                screen.enter("/clear");
+                screen.awaitFrame(frame -> frame.text().contains("Build")
+                        && !frame.text().contains("History line") && !frame.text().contains("New arrival"), "cleared transcript");
+            } finally {
+                releaseReply.countDown();
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    private static String longAnswer() {
+        return java.util.stream.IntStream.range(0, 60).mapToObj(i -> String.format("History line %02d", i))
+                .collect(java.util.stream.Collectors.joining("\n"));
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void previewsPastedTextAndSendsTheCompletePromptOnlyAfterEnter(boolean useClipboard) throws Exception {

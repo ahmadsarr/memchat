@@ -6,10 +6,13 @@ import com.googlecode.lanterna.TerminalPosition;
 import com.googlecode.lanterna.TerminalTextUtils;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
+import com.googlecode.lanterna.input.MouseAction;
+import com.googlecode.lanterna.input.MouseActionType;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.screen.TerminalScreen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.googlecode.lanterna.terminal.Terminal;
+import com.googlecode.lanterna.terminal.MouseCaptureMode;
 import com.googlecode.lanterna.terminal.ansi.StreamBasedTerminal;
 import com.googlecode.lanterna.terminal.ansi.UnixLikeTerminal;
 import com.googlecode.lanterna.terminal.swing.TerminalEmulatorDeviceConfiguration;
@@ -40,6 +43,7 @@ public final class TuiApplication {
     private final TuiUserInteraction interaction;
     private final LongSupplier nanoTime;
     private final Supplier<String> clipboard;
+    private final TranscriptViewport viewport = new TranscriptViewport();
     private final Map<TuiState.ToolActivity, Long> completedTools = new IdentityHashMap<>();
     private String transientToolNotice;
     private long toolNoticeStartedAt;
@@ -84,6 +88,7 @@ public final class TuiApplication {
         var factory = new DefaultTerminalFactory(System.out, System.in, StandardCharsets.UTF_8)
                 .setUnixTerminalCtrlCBehaviour(UnixLikeTerminal.CtrlCBehaviour.TRAP)
                 .setInputTimeout(1)
+                .setMouseCaptureMode(MouseCaptureMode.CLICK_RELEASE)
                 .setTerminalEmulatorDeviceConfiguration(TerminalEmulatorDeviceConfiguration.getDefault()
                         .withClipboardAvailable(false));
         try (Terminal terminal = factory.createTerminal();
@@ -213,6 +218,18 @@ public final class TuiApplication {
             }
             return;
         }
+        if (key instanceof MouseAction mouse) {
+            if (mouse.getActionType() == MouseActionType.SCROLL_UP) viewport.scroll(-3);
+            if (mouse.getActionType() == MouseActionType.SCROLL_DOWN) viewport.scroll(3);
+            return;
+        }
+        switch (key.getKeyType()) {
+            case PageUp -> { viewport.pageUp(); return; }
+            case PageDown -> { viewport.pageDown(); return; }
+            case Home -> { viewport.first(); return; }
+            case End -> { viewport.last(); return; }
+            default -> { }
+        }
         if (key.getKeyType() == KeyType.Insert && key.isShiftDown()) {
             pasteClipboard();
             return;
@@ -338,8 +355,11 @@ public final class TuiApplication {
     private void handleCommand(SlashCommand command) {
         switch (command.kind()) {
             case QUIT -> closing = true;
-            case HELP -> notice = "Commandes: /help /clear /model /quit · Ctrl+V coller · Ctrl+U effacer · Alt+Entrée ajouter une ligne";
-            case CLEAR -> state = TuiReducer.clear(state);
+            case HELP -> notice = "PgUp/PgDn défiler · Début/Fin historique · molette · Ctrl+V coller · Ctrl+U effacer · /clear /quit";
+            case CLEAR -> {
+                state = TuiReducer.clear(state);
+                viewport.last();
+            }
             case MODEL -> notice = "Modèle: " + (command.argument().isBlank() ? model : command.argument());
             case UNKNOWN -> notice = "Commande inconnue: /" + command.argument();
             case NONE -> { }
@@ -394,12 +414,15 @@ public final class TuiApplication {
 
         List<String> lines = conversationLines(width);
         int footerHeight = 5;
-        int start = Math.max(0, lines.size() - Math.max(1, height - footerHeight));
+        viewport.update(lines.size(), height - footerHeight);
+        int start = viewport.top();
         int y = 0;
         for (int i = start; i < lines.size() && y < height - footerHeight; i++) {
             graphics.putString(0, y++, truncate(lines.get(i), width));
         }
-        String status = "Build · " + model + " · " + state.status().name().toLowerCase();
+        String mode = viewport.following() ? "Build"
+                : "Historique " + (viewport.top() + 1) + "/" + viewport.totalLines() + " · Fin: récent";
+        String status = mode + " · " + model + " · " + state.status().name().toLowerCase();
         graphics.setForegroundColor(TextColor.ANSI.CYAN);
         graphics.putString(0, height - 4, truncate(status, width));
         graphics.setForegroundColor(TextColor.ANSI.WHITE);
@@ -407,7 +430,8 @@ public final class TuiApplication {
         graphics.putString(0, height - 3, truncate(label, width));
         String preview = InputPreview.render(input, Math.max(0, width - 2));
         graphics.putString(0, height - 2, "│ " + preview);
-        graphics.putString(0, height - 1, truncate(notice == null ? "Enter envoyer · Ctrl+C interrompre · /help" : notice, width));
+        graphics.putString(0, height - 1, truncate(notice == null
+                ? "Enter envoyer · PgUp/PgDn défiler · Ctrl+C interrompre · /help" : notice, width));
         screen.setCursorPosition(new TerminalPosition(
                 Math.min(width - 1, 2 + TerminalTextUtils.getColumnWidth(preview)), height - 2));
         screen.refresh();
