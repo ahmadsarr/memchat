@@ -30,7 +30,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /** Standalone cosine/HNSW index. Never opens or updates an existing lexical index. */
-public final class LuceneSemanticSearch implements SearchReader, SearchWriter, AutoCloseable {
+public final class LuceneSemanticSearch implements SearchEngine {
     private static final String ID = "id";
     private static final String CONTENT = "content";
     private static final String VECTOR = "embedding";
