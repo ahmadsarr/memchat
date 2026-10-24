@@ -204,3 +204,41 @@ thread. Sessions are not thread-safe or reentrant: the application owns exclusiv
 access, asynchronous execution and shutdown coordination. Use `try-with-resources`
 to close the session at the end of a conversation. See [the lifecycle contract](docs/agent-lifecycle.md)
 for results, interruption, event delivery, memory recovery, and migration notes.
+
+## User preferences
+
+Enable a dedicated user profile with `--user-preferences users/alice/preferences.json`.
+Without this option, no preference file is opened and no preference tools are registered.
+Use a different file per user; reusing that file across conversations preserves the profile.
+This does not change the storage or isolation of working, recall, or archival memory.
+
+The agent receives the current profile in each model context and can use
+`preferencesList`, `preferenceSet(key, value)`, and `preferenceRemove(key)`.
+Store only explicitly stated durable preferences, such as `response.language` or
+`response.style`. These rules guide the model; they are not an authorization check.
+Applications needing approval before writes must add that enforcement separately.
+Values are presented as data, and current explicit user requests take precedence.
+
+The JSON repository atomically commits changes before publishing them in memory.
+It rejects corrupt profiles and bounds the profile to 50 entries, 64-character lowercase
+identifier keys, 500-character values, and 4,000 total key/value characters.
+Files are plaintext; do not store credentials. Use one repository instance per user
+within one process and share it across that user's agents. Multiple instances or
+processes writing the same file are not supported.
+
+Programmatic setup:
+
+```java
+var preferences = new FileUserPreferencesRepository(Path.of("users/alice/preferences.json"));
+try (var agent = AgentBuilder.builder()
+        .model("your-model")
+        .userPreferencesRepository(preferences)
+        .build()) {
+    agent.run("Remember that I prefer concise answers.");
+}
+```
+
+With a custom `MemoryManager`, pass the repository to its four-argument constructor
+and register `new UserPreferencesTools(preferences)` using `.tool(...)` instead.
+Combining a custom manager with `.userPreferencesRepository(...)` fails explicitly
+rather than silently wiring two different preference stores.

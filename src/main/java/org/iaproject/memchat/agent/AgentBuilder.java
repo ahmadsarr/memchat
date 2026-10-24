@@ -8,6 +8,8 @@ import org.iaproject.memchat.memory.ArchivalMemoryRepository;
 import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.memory.MemoryToolsImpl;
 import org.iaproject.memchat.memory.RecallStorageRepository;
+import org.iaproject.memchat.memory.UserPreferencesRepository;
+import org.iaproject.memchat.tools.UserPreferencesTools;
 import org.iaproject.memchat.memory.impl.ArchivalMemoryImpl;
 import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
 import org.iaproject.memchat.memory.impl.FileRecallStorageRepository;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class AgentBuilder {
+    private UserPreferencesRepository userPreferences;
     private String baseUrl = "http://127.0.0.1:11434/v1";
     private String model;
     private String apiKey = "ollama";
@@ -99,7 +102,15 @@ public class AgentBuilder {
         return this;
     }
 
+    public AgentBuilder userPreferencesRepository(UserPreferencesRepository repository) {
+        this.userPreferences = Objects.requireNonNull(repository);
+        return this;
+    }
+
     public AgentLoop build() {
+        if (memoryManager != null && userPreferences != null) {
+            throw new IllegalStateException("Configure preferences on the custom MemoryManager and register its tools explicitly");
+        }
         LLmApiClient llmClient = client != null
                 ? client
                 : new OpenAICompatibleClient(
@@ -110,17 +121,21 @@ public class AgentBuilder {
 
         MemoryManager agentMemory = memoryManager;
         if (agentMemory == null) {
-            agentMemory = new MemoryManager(
-                    new RecallStorageImpl(recallStorageRepository != null
-                            ? recallStorageRepository : new FileRecallStorageRepository()),
-                    new ArchivalMemoryImpl(archivalMemoryRepository != null
-                            ? archivalMemoryRepository : new FileArchivalMemoryRepository()),
-                    new OpenAICompactStrategy(llmClient)
-            );
+            var recall = new RecallStorageImpl(recallStorageRepository != null
+                    ? recallStorageRepository : new FileRecallStorageRepository());
+            var archive = new ArchivalMemoryImpl(archivalMemoryRepository != null
+                    ? archivalMemoryRepository : new FileArchivalMemoryRepository());
+            var compact = new OpenAICompactStrategy(llmClient);
+            agentMemory = userPreferences == null
+                    ? new MemoryManager(recall, archive, compact)
+                    : new MemoryManager(recall, archive, compact, userPreferences);
         }
 
         List<Object> registeredTools = new ArrayList<>(tools);
         registeredTools.add(new MemoryToolsImpl(agentMemory));
+        if (userPreferences != null) {
+            registeredTools.add(new UserPreferencesTools(userPreferences));
+        }
         registeredTools.add(new UserInteractionTools(userInteraction));
 
         return new AgentLoop(
