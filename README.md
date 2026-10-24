@@ -95,6 +95,67 @@ The semantic tests use deterministic vector fixtures and a local HTTP embedding
 server; they require neither an API key nor a running embedding model. They verify
 ranking and client/index behavior, not the quality of a particular real model.
 
+## Hybrid search with the Composite pattern
+
+`SearchEngine` is the common component contract for querying, lookup, upsert,
+deletion, and closing. `LuceneSearchAdapter` (BM25) and `LuceneSemanticSearch`
+(vectors) are leaves. `HybridSearch` implements the same interface and contains
+child `SearchEngine` instances, including other composites. These contracts do
+not connect any engine to the CLI, agent, or memory repositories automatically.
+
+The composite queries each child and combines their ordered results with weighted
+reciprocal rank fusion (RRF): `score = sum(weight / (rankConstant + rank))`.
+Ranks start at 1, weights are normalized to sum to 1, and the default rank
+constant is 60. BM25 and cosine scores remain internal to the leaves. Results are
+deduplicated by document ID; each child contributes at most once per ID. Equal
+fused scores are ordered by ID. Conflicting content or metadata for the same ID
+is rejected so stale versions are not silently selected.
+
+```java
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.iaproject.memchat.search.api.SearchEngine;
+import org.iaproject.memchat.search.hybrid.HybridSearch;
+import org.iaproject.memchat.search.lucene.LuceneSearchAdapter;
+// Also use the Path, Map, SearchDocument and semantic imports shown above.
+
+try (var model = new OpenAiEmbeddingModel(
+        "http://127.0.0.1:11434/v1", "nomic-embed-text", "", 768);
+     var lexical = new LuceneSearchAdapter(new NIOFSDirectory(Path.of("hybrid-bm25")),
+             new IndexWriterConfig(new StandardAnalyzer()));
+     var semantic = new LuceneSemanticSearch(Path.of("hybrid-vectors"), model);
+     SearchEngine hybrid = new HybridSearch(java.util.List.of(lexical, semantic))) {
+    hybrid.index(new SearchDocument("transport", "The automobile needs repairs", Map.of()));
+    var result = hybrid.search("fix my car", 5);
+    System.out.println(result.results());
+}
+```
+
+Use separate directories for the leaves and index the same document IDs through
+the composite. `index` and `remove` are delegated to every child in order. The
+composite owns and closes its child engines, including nested composites; the
+embedding model remains caller-owned. The example also scopes the leaves so
+they are cleaned up if constructing a later resource fails; engine closing is
+idempotent. A leaf may not be shared by multiple branches within one composite
+tree. Do not use child engines independently after transferring ownership.
+
+The default candidate pool is 100 per child, allowing agreement below the first
+position to affect a small final result set. The advanced constructor accepts
+`List<HybridSearch.Child>` with positive relative weights, a nonnegative rank
+constant, and a candidate pool size from 1 to 100. Each child is asked for at least
+the requested final limit. Each nested composite fuses its own children before
+its parent combines that ranking with sibling rankings. `totalHits` counts unique
+documents in the retrieved candidate pool before the final limit, not the corpus.
+
+Reads propagate child failures instead of silently returning an incomplete hybrid
+ranking. Separate indexes have no shared transaction: a write can succeed in one
+child and fail in the next. Such a failure reports the completed child-write
+count and blocks further operations on that composite, except closing. Reconcile
+or rebuild the children from the source corpus before constructing a new
+composite; merely reopening mismatched indexes does not repair them. No automatic
+rollback, degraded-mode fallback, or durable cross-index transaction is claimed.
+
 ## Agent lifecycle and results
 
 `AgentLoop.run(String)` synchronously returns an `AgentRunResult` on the caller's

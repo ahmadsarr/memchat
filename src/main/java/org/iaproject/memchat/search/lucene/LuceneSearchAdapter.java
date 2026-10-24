@@ -6,14 +6,13 @@ import org.apache.lucene.store.Directory;
 import org.iaproject.memchat.search.api.SearchDocument;
 import org.iaproject.memchat.search.api.SearchException;
 import org.iaproject.memchat.search.api.SearchHit;
-import org.iaproject.memchat.search.api.SearchReader;
-import org.iaproject.memchat.search.api.SearchWriter;
+import org.iaproject.memchat.search.api.SearchEngine;
 
 import java.io.IOException;
 import java.util.Optional;
 import java.util.Objects;
 
-public final class LuceneSearchAdapter implements SearchReader, SearchWriter, AutoCloseable {
+public final class LuceneSearchAdapter implements SearchEngine {
     private final Directory directory;
     private final Analyzer analyzer;
     private final LuceneIndex index;
