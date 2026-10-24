@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -53,79 +52,81 @@ public final class TuiApplication {
 
     public void run(String initialInstruction) throws IOException {
         try (Terminal terminal = new DefaultTerminalFactory().createTerminal()) {
-            Screen screen = new TerminalScreen(terminal);
-            screen.startScreen();
-            BlockingQueue<AgentEvent> events = new LinkedBlockingQueue<>();
-            AtomicReference<String> question = new AtomicReference<>();
-            if (interaction != null) {
-                interaction.onQuestion(question::set);
-            }
-
-            ExecutorService executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
-            AtomicReference<Future<?>> currentRun = new AtomicReference<>();
-            AutoCloseable subscription = agent.subscribe(events::offer);
-            try {
-                if (initialInstruction != null && !initialInstruction.isBlank()) {
-                    submit(initialInstruction, currentRun, executor);
-                }
-                boolean dirty = true;
-                String displayedQuestion = null;
-                TerminalSize lastSize = null;
-                while (!closing) {
-                    AgentEvent event;
-                    while ((event = events.poll()) != null) {
-                        state = TuiReducer.reduce(state, event);
-                        dirty = true;
-                    }
-                    String currentQuestion = question.get();
-                    if (!java.util.Objects.equals(displayedQuestion, currentQuestion)) {
-                        displayedQuestion = currentQuestion;
-                        notice = currentQuestion;
-                        dirty = true;
-                    }
-                    for (int keyCount = 0; keyCount < 32; keyCount++) {
-                        KeyStroke key = screen.pollInput();
-                        if (key == null) break;
-                        handleKey(key, currentRun, executor);
-                        dirty = true;
-                        if (closing) break;
-                    }
-                    TerminalSize currentSize = screen.getTerminalSize();
-                    if (!currentSize.equals(lastSize)) {
-                        lastSize = currentSize;
-                        dirty = true;
-                    }
-                    if (dirty) {
-                        draw(screen, displayedQuestion);
-                        dirty = false;
-                    }
-                    Thread.sleep(10);
-                }
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                closing = true;
-            } finally {
-                Future<?> running = currentRun.get();
-                if (running != null && !running.isDone()) {
-                    running.cancel(true);
-                }
-                try {
-                    subscription.close();
-                } catch (Exception ignored) {
-                    // Terminal restoration must continue.
-                }
-                executor.close();
-                screen.close();
-            }
+            run(new TerminalScreen(terminal), initialInstruction);
         }
     }
 
-    private void handleKey(KeyStroke key, AtomicReference<Future<?>> currentRun,
+    // Accept an in-memory screen for regression tests without a physical terminal.
+    void run(Screen screen, String initialInstruction) throws IOException {
+        screen.startScreen();
+        BlockingQueue<AgentEvent> events = new LinkedBlockingQueue<>();
+        BlockingQueue<String> questions = new LinkedBlockingQueue<>();
+        if (interaction != null) {
+            interaction.onQuestion(questions::offer);
+        }
+
+        ExecutorService executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+        AtomicReference<TuiRunTask> currentRun = new AtomicReference<>();
+        AutoCloseable subscription = agent.subscribe(events::offer);
+        try {
+            if (initialInstruction != null && !initialInstruction.isBlank()) {
+                submit(initialInstruction, currentRun, executor);
+            }
+            boolean dirty = true;
+            TerminalSize lastSize = null;
+            while (!closing) {
+                AgentEvent event;
+                while ((event = events.poll()) != null) {
+                    state = TuiReducer.reduce(state, event);
+                    dirty = true;
+                }
+                String currentQuestion;
+                while ((currentQuestion = questions.poll()) != null) {
+                    notice = currentQuestion;
+                    dirty = true;
+                }
+                for (int keyCount = 0; keyCount < 32; keyCount++) {
+                    KeyStroke key = screen.pollInput();
+                    if (key == null) break;
+                    handleKey(key, currentRun, executor);
+                    dirty = true;
+                    if (closing) break;
+                }
+                TerminalSize currentSize = screen.getTerminalSize();
+                if (!currentSize.equals(lastSize)) {
+                    lastSize = currentSize;
+                    dirty = true;
+                }
+                if (dirty) {
+                    draw(screen);
+                    dirty = false;
+                }
+                Thread.sleep(10);
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            closing = true;
+        } finally {
+            TuiRunTask running = currentRun.get();
+            if (running != null && !running.hasExited()) {
+                running.cancel(true);
+            }
+            try {
+                subscription.close();
+            } catch (Exception ignored) {
+                // Terminal restoration must continue.
+            }
+            executor.close();
+            screen.close();
+        }
+    }
+
+    private void handleKey(KeyStroke key, AtomicReference<TuiRunTask> currentRun,
                            ExecutorService executor) {
         if (key.isCtrlDown() && key.getKeyType() == KeyType.Character) {
             if (key.getCharacter() == 'c') {
-                Future<?> running = currentRun.get();
-                if (running != null && !running.isDone() && !interruptRequested) {
+                TuiRunTask running = currentRun.get();
+                if (running != null && !running.hasExited() && !interruptRequested) {
                     interruptRequested = true;
                     running.cancel(true);
                     notice = "Interruption demandée (Ctrl+C pour quitter)";
@@ -169,7 +170,7 @@ public final class TuiApplication {
         }
     }
 
-    private void submitInput(AtomicReference<Future<?>> currentRun, ExecutorService executor) {
+    private void submitInput(AtomicReference<TuiRunTask> currentRun, ExecutorService executor) {
         String value = input.strip();
         input = "";
         if (value.isEmpty()) return;
@@ -182,14 +183,14 @@ public final class TuiApplication {
             handleCommand(command);
             return;
         }
-        if (currentRun.get() != null && !currentRun.get().isDone()) {
+        if (currentRun.get() != null && !currentRun.get().hasExited()) {
             notice = "Une exécution est déjà en cours";
             return;
         }
         submit(value, currentRun, executor);
     }
 
-    private void submit(String instruction, AtomicReference<Future<?>> currentRun,
+    private void submit(String instruction, AtomicReference<TuiRunTask> currentRun,
                         ExecutorService executor) {
         history.remove(instruction);
         history.add(instruction);
@@ -197,7 +198,9 @@ public final class TuiApplication {
         interruptRequested = false;
         notice = null;
         state = TuiReducer.userMessage(state, instruction);
-        currentRun.set(executor.submit(() -> agent.run(instruction)));
+        TuiRunTask task = new TuiRunTask(() -> agent.run(instruction));
+        currentRun.set(task);
+        executor.execute(task);
     }
 
     private void handleCommand(SlashCommand command) {
@@ -227,7 +230,7 @@ public final class TuiApplication {
         input = historyIndex == history.size() ? "" : history.get(historyIndex);
     }
 
-    private void draw(Screen screen, String question) throws IOException {
+    private void draw(Screen screen) throws IOException {
         TerminalSize size = screen.getTerminalSize();
         int width = size.getColumns();
         int height = size.getRows();

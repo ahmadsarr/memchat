@@ -1,5 +1,10 @@
 package org.iaproject.memchat.tui;
 
+import com.googlecode.lanterna.TerminalSize;
+import com.googlecode.lanterna.input.KeyStroke;
+import com.googlecode.lanterna.input.KeyType;
+import com.googlecode.lanterna.screen.TerminalScreen;
+import com.googlecode.lanterna.terminal.virtual.DefaultVirtualTerminal;
 import org.iaproject.memchat.agent.AgentEvent;
 import org.iaproject.memchat.agent.AgentLoop;
 import org.iaproject.memchat.agent.AgentRunState;
@@ -8,15 +13,142 @@ import org.iaproject.memchat.memory.ArchivalMemory;
 import org.iaproject.memchat.memory.Memory;
 import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.memory.RecallStorage;
+import org.iaproject.memchat.tools.UserInteractionTools;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Agent-level event sequence consumed by the same reducer as the TUI. */
 class TuiAgentIntegrationTest {
+    @Test
+    void refusesANewRunWhileTheCancelledModelCallIsStillRunning() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch interrupted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        LLmApiClient client = (messages, tools) -> {
+            calls.incrementAndGet();
+            started.countDown();
+            while (release.getCount() != 0) {
+                try {
+                    release.await();
+                } catch (InterruptedException ignored) {
+                    interrupted.countDown();
+                }
+            }
+            return new LLmApiClient.ChatResponse("answer", List.of());
+        };
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(1, client, memory);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            TuiApplication app = new TuiApplication(loop, "mock");
+            var ui = executor.submit(() -> { app.run(screen, "first"); return null; });
+            try {
+                assertTrue(started.await(5, TimeUnit.SECONDS));
+                screen.keys.offer(new KeyStroke('c', true, false));
+                screen.awaitFooter("Interruption demandée");
+                assertTrue(interrupted.await(5, TimeUnit.SECONDS));
+                screen.enter("second");
+                screen.awaitFooter("Une exécution est déjà en cours");
+                assertEquals(1, calls.get());
+            } finally {
+                release.countDown();
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void redisplaysAnIdenticalQuestionAfterThePreviousAnswer() throws Exception {
+        String question = "Which file?";
+        TuiUserInteraction interaction = new TuiUserInteraction();
+        CountDownLatch allowSecondQuestion = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        LLmApiClient client = (messages, tools) -> {
+            int call = calls.getAndIncrement();
+            if (call == 1) {
+                try {
+                    if (!allowSecondQuestion.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Second question was not released");
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+            }
+            return call < 2
+                    ? new LLmApiClient.ChatResponse(null, List.of(new LLmApiClient.ToolCall(
+                            "ask-" + call, "askUser", "{\"question\":\"Which file?\"}")))
+                    : new LLmApiClient.ChatResponse("done", List.of());
+        };
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(3, client, memory, new UserInteractionTools(interaction));
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            TuiApplication app = new TuiApplication(loop, "mock", new TuiRenderer(), interaction);
+            var ui = executor.submit(() -> { app.run(screen, "hello"); return null; });
+            try {
+                screen.awaitFooter(question);
+                screen.enter("first.txt");
+                screen.awaitFooter("Enter envoyer");
+                allowSecondQuestion.countDown();
+                screen.awaitFooter(question);
+                assertTrue(interaction.waiting());
+            } finally {
+                allowSecondQuestion.countDown();
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    private static final class RecordingScreen extends TerminalScreen {
+        private final BlockingQueue<KeyStroke> keys = new LinkedBlockingQueue<>();
+        private final BlockingQueue<String> footers = new LinkedBlockingQueue<>();
+
+        RecordingScreen() throws java.io.IOException {
+            super(new DefaultVirtualTerminal(new TerminalSize(80, 24)));
+        }
+
+        @Override
+        public KeyStroke pollInput() {
+            return keys.poll();
+        }
+
+        @Override
+        public void refresh() {
+            StringBuilder footer = new StringBuilder();
+            for (int x = 0; x < 80; x++) footer.append(getBackCharacter(x, 23).getCharacter());
+            footers.offer(footer.toString());
+        }
+
+        void enter(String text) {
+            for (char character : text.toCharArray()) keys.offer(new KeyStroke(character, false, false));
+            keys.offer(new KeyStroke(KeyType.Enter));
+        }
+
+        void awaitFooter(String expected) throws InterruptedException {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (true) {
+                long remaining = deadline - System.nanoTime();
+                String footer = remaining > 0 ? footers.poll(remaining, TimeUnit.NANOSECONDS) : null;
+                assertNotNull(footer, "Expected footer containing: " + expected);
+                if (footer.contains(expected)) return;
+            }
+        }
+    }
+
     @Test
     void mockAgentEventsProduceATuiTranscript() {
         LLmApiClient client = (messages, tools) -> new LLmApiClient.ChatResponse("answer", List.of());

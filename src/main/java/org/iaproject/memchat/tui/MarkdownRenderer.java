@@ -1,5 +1,6 @@
 package org.iaproject.memchat.tui;
 
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Small Markdown-to-terminal renderer for the common chat syntax. */
@@ -29,6 +30,6 @@ public final class MarkdownRenderer {
 
     private static String ansiReplace(String value, String regex, String prefix, String suffix) {
         return Pattern.compile(regex).matcher(value)
-                .replaceAll(match -> prefix + match.group(1) + suffix);
+                .replaceAll(match -> Matcher.quoteReplacement(prefix + match.group(1) + suffix));
     }
 }

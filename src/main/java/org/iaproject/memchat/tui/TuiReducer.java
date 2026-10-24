@@ -40,6 +40,14 @@ public final class TuiReducer {
                 status = TuiState.Status.ERROR;
             }
             case RUN_COMPLETED -> {
+                if (event.result() != null && event.result().failure() != null) {
+                    var failure = event.result().failure();
+                    String detail = failure.message() == null || failure.message().isBlank()
+                            ? failure.type() : failure.message();
+                    addIfNew(transcript, new TuiState.TranscriptEntry(TuiState.Role.ERROR,
+                            failure.stage() + ": " + detail));
+                    closeRunningTools(activities, TuiState.ToolStatus.ERROR);
+                }
                 status = state.status() == TuiState.Status.ERROR
                         || "FAILED".equalsIgnoreCase(event.message())
                         ? TuiState.Status.ERROR : TuiState.Status.IDLE;
