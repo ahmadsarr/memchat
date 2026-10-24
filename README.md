@@ -24,6 +24,23 @@ The GitHub Actions workflow runs the same verification on pull requests and mast
 The tests use temporary memory files and local HTTP servers; no LLM service or API
 key is needed.
 
+## Lucene archival search
+
+The CLI keeps using `memory.json` by default, so existing archives remain available.
+Pass `--archive-index DIRECTORY` to use a persistent Lucene archive instead. The
+directory is created when a conversation starts and is closed when it ends,
+including when agent setup or execution fails.
+
+Lucene searches plain text with BM25 ranking. Punctuation is analyzed as text;
+Lucene query operators and metadata field selectors are not exposed. This is
+lexical search; embeddings and vector similarity are not implemented yet.
+
+The Lucene archive is separate from `memory.json`; existing JSON memories are
+not automatically imported. Programmatic callers can supply a
+`LuceneArchivalMemoryRepository` to `AgentBuilder.archivalMemoryRepository(...)`
+and must close the repository after closing the agent. `LuceneSearchAdapter`
+owns its supplied directory and analyzer and closes them even if opening fails.
+
 ## Agent lifecycle and results
 
 `AgentLoop.run(String)` synchronously returns an `AgentRunResult` on the caller's

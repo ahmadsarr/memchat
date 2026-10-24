@@ -1,0 +1,135 @@
+package org.iaproject.memchat.search.lucene;
+
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.store.Directory;
+import org.iaproject.memchat.search.api.SearchDocument;
+import org.iaproject.memchat.search.api.SearchException;
+import org.iaproject.memchat.search.api.SearchWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.Objects;
+
+final class LuceneIndex implements SearchWriter, AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LuceneIndex.class);
+    static final String ID = "id";
+    static final String BODY = "body";
+
+    private final IndexWriter indexWriter;
+    private final SearcherManager searcherManager;
+
+    LuceneIndex(Directory directory, IndexWriterConfig config) throws IOException {
+        Objects.requireNonNull(directory, "Index directory required");
+        Objects.requireNonNull(config, "Index config required");
+
+        this.indexWriter = new IndexWriter(directory, config);
+        try {
+            this.searcherManager = new SearcherManager(indexWriter, null);
+        } catch (IOException | RuntimeException e) {
+            try {
+                indexWriter.close();
+            } catch (IOException | RuntimeException closeFailure) {
+                e.addSuppressed(closeFailure);
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public void index(SearchDocument searchDocument) throws SearchException {
+        Objects.requireNonNull(searchDocument, "searchDocument");
+        String id = requireNonBlank(searchDocument.id(), "Document ID");
+        String content = requireNonBlank(searchDocument.content(), "Document content");
+        long startedAt = System.nanoTime();
+        LOGGER.info("Lucene index started (id={}, contentLength={}, metadata={})",
+                id, content.length(), searchDocument.metadata() == null ? 0 : searchDocument.metadata().size());
+
+        Document document = new Document();
+        document.add(new StringField(ID, id, Field.Store.YES));
+        document.add(new TextField(BODY, content, Field.Store.YES));
+
+        if (searchDocument.metadata() != null) {
+            searchDocument.metadata().forEach((key, value) -> {
+                requireNonBlank(key, "Metadata key");
+                Objects.requireNonNull(value, "Metadata value");
+                if (ID.equals(key) || BODY.equals(key)) {
+                    throw new IllegalArgumentException("Reserved metadata key: " + key);
+                }
+                document.add(new StringField(key, value, Field.Store.YES));
+            });
+        }
+
+        try {
+            indexWriter.updateDocument(new Term(ID, id), document);
+            indexWriter.commit();
+            LOGGER.info("Lucene index completed (id={}, committed=true, durationMs={})",
+                    id, elapsedMillis(startedAt));
+        } catch (IOException e) {
+            LOGGER.warn("Lucene index failed (id={}, durationMs={}, error={})",
+                    id, elapsedMillis(startedAt), e.getClass().getSimpleName(), e);
+            throw new SearchException("Unable to index document: " + id, e);
+        }
+    }
+
+    @Override
+    public void remove(String documentId) throws SearchException {
+        String id = requireNonBlank(documentId, "Document ID");
+        long startedAt = System.nanoTime();
+        LOGGER.info("Lucene remove started (id={})", id);
+        try {
+            indexWriter.deleteDocuments(new Term(ID, id));
+            indexWriter.commit();
+            LOGGER.info("Lucene remove completed (id={}, committed=true, durationMs={})",
+                    id, elapsedMillis(startedAt));
+        } catch (IOException e) {
+            LOGGER.warn("Lucene remove failed (id={}, durationMs={}, error={})",
+                    id, elapsedMillis(startedAt), e.getClass().getSimpleName(), e);
+            throw new SearchException("Unable to remove document: " + id, e);
+        }
+    }
+
+    IndexSearcher acquireSearcher() throws IOException {
+        searcherManager.maybeRefreshBlocking();
+        return searcherManager.acquire();
+    }
+
+    void releaseSearcher(IndexSearcher searcher) throws IOException {
+        searcherManager.release(searcher);
+    }
+
+    Analyzer analyzer() {
+        return indexWriter.getConfig().getAnalyzer();
+    }
+
+    @Override
+    public void close() throws IOException {
+        LOGGER.info("Lucene index closing");
+        try {
+            searcherManager.close();
+        } finally {
+            indexWriter.close();
+        }
+        LOGGER.info("Lucene index closed");
+    }
+
+    private static long elapsedMillis(long startedAt) {
+        return java.time.Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+    }
+
+    private static String requireNonBlank(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        return value;
+    }
+}

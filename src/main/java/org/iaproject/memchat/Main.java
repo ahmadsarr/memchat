@@ -4,10 +4,13 @@ import org.iaproject.memchat.agent.AgentBuilder;
 import org.iaproject.memchat.agent.AgentLoop;
 import org.iaproject.memchat.agent.AgentRunState;
 import org.iaproject.memchat.cli.MemchatArg;
+import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
+import org.iaproject.memchat.memory.impl.LuceneArchivalMemoryRepository;
 import picocli.CommandLine;
+import java.io.IOException;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         MemchatArg memchatArg = new MemchatArg();
         CommandLine commandLine = new CommandLine(memchatArg);
         CommandLine.ParseResult parsed = commandLine.parseArgs(args);
@@ -32,11 +35,14 @@ public class Main {
         if (shouldExit(instruction)) {
             return;
         }
-        try (AgentLoop agentLoop = AgentBuilder.builder()
+        try (LuceneArchivalMemoryRepository archive = memchatArg.archiveIndex == null ? null
+                : new LuceneArchivalMemoryRepository(memchatArg.archiveIndex);
+             AgentLoop agentLoop = AgentBuilder.builder()
                 .baseUrl(memchatArg.baseUrl)
                 .model(memchatArg.model)
                 .apiKey(memchatArg.apiKey)
                 .maxSteps(memchatArg.maxSteps)
+                .archivalMemoryRepository(archive == null ? new FileArchivalMemoryRepository() : archive)
                 .userInteraction(console)
                 .build()) {
             agentLoop.subscribe(event -> {
