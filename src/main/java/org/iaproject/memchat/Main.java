@@ -1,16 +1,13 @@
 package org.iaproject.memchat;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import org.iaproject.memchat.agent.AgentBuilder;
 import org.iaproject.memchat.agent.AgentLoop;
+import org.iaproject.memchat.agent.AgentRunState;
 import org.iaproject.memchat.cli.MemchatArg;
-import org.iaproject.memchat.memory.impl.LuceneArchivalMemoryRepository;
 import picocli.CommandLine;
 
-import java.io.IOException;
-
 public class Main {
-    public static void main(String[] args) throws InterruptedException, IOException {
+    public static void main(String[] args) {
         MemchatArg memchatArg = new MemchatArg();
         CommandLine commandLine = new CommandLine(memchatArg);
         CommandLine.ParseResult parsed = commandLine.parseArgs(args);
@@ -35,30 +32,34 @@ public class Main {
         if (shouldExit(instruction)) {
             return;
         }
-        AgentLoop agentLoop = AgentBuilder.builder()
+        try (AgentLoop agentLoop = AgentBuilder.builder()
                 .baseUrl(memchatArg.baseUrl)
                 .model(memchatArg.model)
                 .apiKey(memchatArg.apiKey)
                 .maxSteps(memchatArg.maxSteps)
-                .archivalMemoryRepository(new LuceneArchivalMemoryRepository())
                 .userInteraction(console)
-                .build();
-        try {
+                .build()) {
             agentLoop.subscribe(event -> {
                 switch (event.type()) {
-                    case AGENT_MESSAGE -> System.out.println("Agent> " + event.message());
+                    case AGENT_MESSAGE, RUN_COMPLETED -> { /* Printed from the direct result below. */ }
                     case TOOL_EXECUTION -> System.out.println("Execute: " + event.message());
                     default -> System.out.println(event.message());
                 }
             });
             while (!shouldExit(instruction)) {
                 if (!instruction.isBlank()) {
-                    agentLoop.run(instruction);
+                    var result = agentLoop.run(instruction);
+                    if (result.status() == AgentRunState.SUCCEEDED) {
+                        System.out.println("Agent> " + result.finalResponse());
+                    } else {
+                        System.err.println("Agent: " + result.status()
+                                + (result.failure() == null ? "" : " - " + result.failure().message()));
+                    }
+                    if (result.recoveryRequired()
+                            || result.status() == AgentRunState.CANCELLED) break;
                 }
                 instruction = console.read();
             }
-        } finally {
-            agentLoop.close();
         }
     }
 

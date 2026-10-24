@@ -47,7 +47,10 @@ class AgentLoopIntegrationTest {
         List<AgentEvent> events = new ArrayList<>();
         loop.subscribe(events::add);
 
-        loop.run("hello");
+        AgentRunResult result = loop.run("hello");
+        assertEquals("final answer", result.finalResponse());
+        assertEquals(AgentRunState.SUCCEEDED, result.status());
+        loop.close(); // Event delivery is asynchronous; closure drains callbacks.
 
         assertEquals(2, calls.get());
         assertTrue(events.stream().anyMatch(event ->
@@ -55,7 +58,6 @@ class AgentLoopIntegrationTest {
         assertTrue(events.stream().anyMatch(event ->
                 event.type() == AgentEvent.Type.AGENT_MESSAGE
                         && event.message().equals("final answer")));
-        loop.close();
     }
 
     private static final class InMemoryRecallStorage implements RecallStorage {

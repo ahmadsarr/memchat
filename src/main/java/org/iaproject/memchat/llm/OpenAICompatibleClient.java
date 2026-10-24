@@ -106,6 +106,7 @@ public class OpenAICompatibleClient implements LLmApiClient {
             throw invalidResponse("content must be text or null");
         }
         String content = contentNode.asText("");
+
         List<ToolCall> toolCalls = new ArrayList<>();
         JsonNode callsNode = message.path("tool_calls");
         if (!callsNode.isMissingNode() && !callsNode.isNull() && !callsNode.isArray()) {
@@ -120,6 +121,14 @@ public class OpenAICompatibleClient implements LLmApiClient {
             }
             toolCalls.add(new ToolCall(call.path("id").asText(),
                     function.path("name").asText(), function.path("arguments").asText()));
+        }
+
+        if ("tool_calls".equals(finishReason) && toolCalls.isEmpty()) {
+            throw invalidResponse("finish_reason=tool_calls requires a tool call");
+        }
+        // Reasoning is not a final answer or a replacement memory summary.
+        if (content.isBlank() && toolCalls.isEmpty()) {
+            throw invalidResponse("incomplete completion: no final answer or tool call");
         }
         return new ChatResponse(content, List.copyOf(toolCalls));
     }
