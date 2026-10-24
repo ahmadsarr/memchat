@@ -48,6 +48,7 @@ public class Main {
             agentLoop.subscribe(event -> {
                 switch (event.type()) {
                     case AGENT_MESSAGE, RUN_COMPLETED -> { /* Printed from the direct result below. */ }
+                    case TOOL_COMPLETED -> { /* Detailed tool outcomes are consumed by the TUI. */ }
                     case TOOL_EXECUTION -> System.out.println("Execute: " + event.message());
                     default -> System.out.println(event.message());
                 }
