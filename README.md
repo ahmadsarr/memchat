@@ -238,7 +238,12 @@ try (var agent = AgentBuilder.builder()
 }
 ```
 
-With a custom `MemoryManager`, pass the repository to its four-argument constructor
-and register `new UserPreferencesTools(preferences)` using `.tool(...)` instead.
+With a custom `MemoryManager`, pass `new UserPreferencesMemoryImpl(preferences)` to its four-argument constructor
+and register `new UserPreferencesTools(memoryManager)` using `.tool(...)` instead.
 Combining a custom manager with `.userPreferencesRepository(...)` fails explicitly
 rather than silently wiring two different preference stores.
+
+Preferences follow the same layering as recall memory:
+`UserPreferencesTools → MemoryManager → UserPreferencesMemory → UserPreferencesRepository`.
+`UserPreferencesMemoryImpl` validates individual operations and delegates persistence
+to `FileUserPreferencesRepository`, which enforces the complete profile budget atomically.

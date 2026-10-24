@@ -11,6 +11,7 @@ import org.iaproject.memchat.memory.RecallStorageRepository;
 import org.iaproject.memchat.memory.UserPreferencesRepository;
 import org.iaproject.memchat.tools.UserPreferencesTools;
 import org.iaproject.memchat.memory.impl.ArchivalMemoryImpl;
+import org.iaproject.memchat.memory.impl.UserPreferencesMemoryImpl;
 import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
 import org.iaproject.memchat.memory.impl.FileRecallStorageRepository;
 import org.iaproject.memchat.memory.impl.RecallStorageImpl;
@@ -128,13 +129,13 @@ public class AgentBuilder {
             var compact = new OpenAICompactStrategy(llmClient);
             agentMemory = userPreferences == null
                     ? new MemoryManager(recall, archive, compact)
-                    : new MemoryManager(recall, archive, compact, userPreferences);
+                    : new MemoryManager(recall, archive, compact, new UserPreferencesMemoryImpl(userPreferences));
         }
 
         List<Object> registeredTools = new ArrayList<>(tools);
         registeredTools.add(new MemoryToolsImpl(agentMemory));
         if (userPreferences != null) {
-            registeredTools.add(new UserPreferencesTools(userPreferences));
+            registeredTools.add(new UserPreferencesTools(agentMemory));
         }
         registeredTools.add(new UserInteractionTools(userInteraction));
 

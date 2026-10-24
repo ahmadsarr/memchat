@@ -13,7 +13,7 @@ import java.util.List;
 
 public class MemoryManager {
 
-    private final UserPreferencesRepository userPreferences;
+    private final UserPreferencesMemory userPreferences;
     private final WorkingMemory workingMemory;
     private final RecallStorage recallStorage;
     private final ArchivalMemory archivalStorage;
@@ -26,7 +26,7 @@ public class MemoryManager {
             ArchivalMemory archivalStorage,
             ContextControlStrategy contextControlStrategy,
             CompactStrategy compactStrategy,
-            UserPreferencesRepository userPreferences
+            UserPreferencesMemory userPreferences
     ) {
         this.userPreferences = userPreferences;
         this.workingMemory = workingMemory;
@@ -49,11 +49,30 @@ public class MemoryManager {
             RecallStorage recallStorage,
             ArchivalMemory archivalStorage,
             CompactStrategy compactStrategy,
-            UserPreferencesRepository userPreferences
+            UserPreferencesMemory userPreferences
     ) {
         this(new WorkingMemoryImpl(), recallStorage, archivalStorage,
                 new ContextControlStrategyImpl(), compactStrategy,
                 java.util.Objects.requireNonNull(userPreferences));
+    }
+
+    public java.util.Map<String, String> listPreferences() {
+        return preferences().list();
+    }
+
+    public void setPreference(String key, String value) {
+        preferences().set(key, value);
+    }
+
+    public void removePreference(String key) {
+        preferences().remove(key);
+    }
+
+    private UserPreferencesMemory preferences() {
+        if (userPreferences == null) {
+            throw new IllegalStateException("User preferences are not configured");
+        }
+        return userPreferences;
     }
 
     public String archive(String content) {
