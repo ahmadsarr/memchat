@@ -36,7 +36,11 @@ final class LuceneIndex implements SearchWriter, AutoCloseable {
         try {
             this.searcherManager = new SearcherManager(indexWriter, null);
         } catch (IOException | RuntimeException e) {
-            indexWriter.close();
+            try {
+                indexWriter.close();
+            } catch (IOException | RuntimeException closeFailure) {
+                e.addSuppressed(closeFailure);
+            }
             throw e;
         }
     }

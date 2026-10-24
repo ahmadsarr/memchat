@@ -4,6 +4,7 @@ package org.iaproject.memchat.cli;
 import lombok.ToString;
 import picocli.CommandLine;
 import picocli.CommandLine.Option;
+import java.nio.file.Path;
 
 @ToString
 @CommandLine.Command(name = "memchat", mixinStandardHelpOptions = true,
@@ -23,6 +24,9 @@ public class MemchatArg implements Runnable {
     public int rawHistoryN;
     @Option(names = "--dry-run")
     public boolean dryRun;
+    @Option(names = "--archive-index", paramLabel = "DIRECTORY",
+            description = "Use a Lucene BM25 archive in DIRECTORY instead of the default memory.json file")
+    public Path archiveIndex;
 
     @Override
     public void run() {

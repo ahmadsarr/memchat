@@ -1,10 +1,10 @@
 package org.iaproject.memchat.search.lucene;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -42,10 +42,10 @@ final class LuceneBm25Searcher implements SearchReader {
         IndexSearcher searcher = null;
         try {
             searcher = index.acquireSearcher();
-            Query parsedQuery = new QueryParser(
-                    LuceneIndex.BODY,
-                    index.analyzer()
-            ).parse(query);
+            // Agent queries are ordinary text, not Lucene expressions or field selectors.
+            Query parsedQuery = new QueryBuilder(index.analyzer())
+                    .createBooleanQuery(LuceneIndex.BODY, query);
+            if (parsedQuery == null) parsedQuery = new MatchNoDocsQuery();
             TopDocs topDocs = searcher.search(parsedQuery, limit);
             List<SearchResult> documents = new ArrayList<>();
 
@@ -61,7 +61,7 @@ final class LuceneBm25Searcher implements SearchReader {
             LOGGER.info("Lucene BM25 search completed (totalHits={}, returned={}, maxScore={}, durationMs={})",
                     result.totalHits(), result.results().size(), maxScore, elapsedMillis(startedAt));
             return result;
-        } catch (IOException | ParseException e) {
+        } catch (IOException e) {
             LOGGER.warn("Lucene BM25 search failed (queryLength={}, durationMs={}, error={})",
                     query.length(), elapsedMillis(startedAt), e.getClass().getSimpleName(), e);
             throw new SearchException("Unable to search Lucene index", e);

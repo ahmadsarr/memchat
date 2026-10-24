@@ -107,7 +107,7 @@ public final class LuceneArchivalMemoryRepository implements ArchivalMemoryRepos
     }
 
     @Override
-    public void close() throws IOException {
+    public synchronized void close() throws IOException {
         adapter.close();
     }
 
