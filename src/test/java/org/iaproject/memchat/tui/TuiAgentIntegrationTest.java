@@ -14,6 +14,7 @@ import org.iaproject.memchat.memory.Memory;
 import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.memory.RecallStorage;
 import org.iaproject.memchat.tools.UserInteractionTools;
+import org.iaproject.memchat.tools.Tool;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -29,6 +30,81 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Agent-level event sequence consumed by the same reducer as the TUI. */
 class TuiAgentIntegrationTest {
+    @Test
+    void appliesTerminalResizesAndRecoversFromATinyWindow() throws Exception {
+        LLmApiClient client = (messages, tools) -> { throw new AssertionError("No model call expected"); };
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(1, client, memory);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            var ui = executor.submit(() -> { new TuiApplication(loop, "mock").run(screen, null); return null; });
+            try {
+                screen.awaitSize(new TerminalSize(80, 24));
+                screen.terminal.setTerminalSize(new TerminalSize(100, 30));
+                var enlarged = screen.awaitSize(new TerminalSize(100, 30));
+                assertTrue(enlarged.footer().contains("Enter envoyer"));
+                screen.terminal.setTerminalSize(new TerminalSize(2, 2));
+                screen.awaitSize(new TerminalSize(2, 2));
+                screen.terminal.setTerminalSize(new TerminalSize(80, 24));
+                assertTrue(screen.awaitSize(new TerminalSize(80, 24)).footer().contains("Enter envoyer"));
+            } finally {
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void showsAToolFailureEvenWhenTheAgentRecoversAndSucceeds() throws Exception {
+        CountDownLatch allowRecovery = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        List<AgentEvent> events = new java.util.concurrent.CopyOnWriteArrayList<>();
+        LLmApiClient client = (messages, tools) -> {
+            if (calls.getAndIncrement() == 0) {
+                return new LLmApiClient.ChatResponse(null,
+                        List.of(new LLmApiClient.ToolCall("failing-call", "explode", "{}")));
+            }
+            try {
+                if (!allowRecovery.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Recovery not released");
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(exception);
+            }
+            return new LLmApiClient.ChatResponse("Recovered answer", List.of());
+        };
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(2, client, memory, new FailingTool());
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            loop.subscribe(events::add);
+            RecordingScreen screen = new RecordingScreen();
+            var ui = executor.submit(() -> { new TuiApplication(loop, "mock").run(screen, "hello"); return null; });
+            try {
+                screen.awaitFooter("Échec de explode");
+                allowRecovery.countDown();
+                var frame = screen.awaitText("Recovered answer");
+                assertTrue(frame.text().contains("explode [error]"));
+                assertTrue(frame.text().contains("tool exploded"));
+            } finally {
+                allowRecovery.countDown();
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+        var completion = events.stream().filter(event -> event.type() == AgentEvent.Type.TOOL_COMPLETED)
+                .findFirst().orElseThrow();
+        var run = events.stream().filter(event -> event.type() == AgentEvent.Type.RUN_COMPLETED)
+                .findFirst().orElseThrow();
+        assertEquals(run.runId(), completion.runId());
+        assertEquals("failing-call", completion.toolExecution().callId());
+        assertFalse(completion.toolExecution().result().success());
+        assertEquals(AgentRunState.SUCCEEDED, run.result().status());
+    }
+
+    public static final class FailingTool {
+        @Tool(description = "Fail for the UI regression test")
+        public String explode() { throw new IllegalStateException("tool exploded"); }
+    }
+
     @Test
     void refusesANewRunWhileTheCancelledModelCallIsStillRunning() throws Exception {
         CountDownLatch started = new CountDownLatch(1);
@@ -114,11 +190,20 @@ class TuiAgentIntegrationTest {
     }
 
     private static final class RecordingScreen extends TerminalScreen {
+        private final DefaultVirtualTerminal terminal;
         private final BlockingQueue<KeyStroke> keys = new LinkedBlockingQueue<>();
         private final BlockingQueue<String> footers = new LinkedBlockingQueue<>();
+        private final BlockingQueue<Frame> frames = new LinkedBlockingQueue<>();
+
+        private record Frame(TerminalSize size, String text, String footer) {}
 
         RecordingScreen() throws java.io.IOException {
-            super(new DefaultVirtualTerminal(new TerminalSize(80, 24)));
+            this(new DefaultVirtualTerminal(new TerminalSize(80, 24)));
+        }
+
+        private RecordingScreen(DefaultVirtualTerminal terminal) throws java.io.IOException {
+            super(terminal);
+            this.terminal = terminal;
         }
 
         @Override
@@ -128,9 +213,37 @@ class TuiAgentIntegrationTest {
 
         @Override
         public void refresh() {
+            TerminalSize size = getTerminalSize();
+            StringBuilder text = new StringBuilder();
             StringBuilder footer = new StringBuilder();
-            for (int x = 0; x < 80; x++) footer.append(getBackCharacter(x, 23).getCharacter());
+            for (int y = 0; y < size.getRows(); y++) {
+                for (int x = 0; x < size.getColumns(); x++) {
+                    char character = getBackCharacter(x, y).getCharacter();
+                    text.append(character);
+                    if (y == size.getRows() - 1) footer.append(character);
+                }
+                text.append('\n');
+            }
             footers.offer(footer.toString());
+            frames.offer(new Frame(size, text.toString(), footer.toString()));
+        }
+
+        Frame awaitSize(TerminalSize expected) throws InterruptedException {
+            return awaitFrame(frame -> frame.size().equals(expected), "screen size " + expected);
+        }
+
+        Frame awaitText(String expected) throws InterruptedException {
+            return awaitFrame(frame -> frame.text().contains(expected), "screen text " + expected);
+        }
+
+        private Frame awaitFrame(java.util.function.Predicate<Frame> matches, String expected) throws InterruptedException {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (true) {
+                long remaining = deadline - System.nanoTime();
+                Frame frame = remaining > 0 ? frames.poll(remaining, TimeUnit.NANOSECONDS) : null;
+                assertNotNull(frame, "Expected " + expected);
+                if (matches.test(frame)) return frame;
+            }
         }
 
         void enter(String text) {

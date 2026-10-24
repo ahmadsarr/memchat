@@ -74,12 +74,17 @@ public class AgentProcessor {
 
         // Even a cancelled call needs a matching result once recorded in the conversation.
         ToolResult result;
+        long startedAt = System.nanoTime();
         if (cancelled.getAsBoolean()) {
             result = ToolResult.failure(call.name(), "Cancelled before tool execution");
         } else {
-            publish(AgentEvent.Type.TOOL_EXECUTION, call.name());
+            eventPublisher.accept(new AgentEvent(AgentEvent.Type.TOOL_EXECUTION, call.name(), null, null,
+                    new AgentEvent.ToolExecution(call.id(), call.name(), null, -1)));
             result = actionExecutor.execute(call.name(), call.arguments());
         }
+        eventPublisher.accept(new AgentEvent(AgentEvent.Type.TOOL_COMPLETED, call.name(), null, null,
+                new AgentEvent.ToolExecution(call.id(), call.name(), result,
+                        java.time.Duration.ofNanos(System.nanoTime() - startedAt).toMillis())));
 
         addMessage(LLmApiClient.ChatMessage.tool(
                 call.id(),

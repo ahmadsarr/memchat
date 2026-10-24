@@ -119,7 +119,15 @@ elle seule, cette garantie.
 Les événements portent `runId`. L'événement `RUN_COMPLETED` porte le même objet
 `AgentRunResult` que le retour synchrone, et est publié une seule fois par demande
 terminée dans le cadre du contrat. `AGENT_MESSAGE` contient la réponse finale et
-`TOOL_EXECUTION` signale les outils.
+`TOOL_EXECUTION` signale le début d'un appel d'outil. `TOOL_COMPLETED` transmet
+ensuite son résultat réel via `toolExecution` : identifiant d'appel, nom de
+l'outil, `ToolResult` et durée en millisecondes. Ces données sont conservées
+avec le `runId` lors de la livraison aux listeners.
+
+Un résultat d'outil en échec est affiché comme tel dans la TUI, avec sa cause,
+même si l'agent récupère ensuite et termine avec `SUCCEEDED`. Il ne constitue
+pas un échec terminal de la demande. La notification décrit l'exécution de
+l'outil ; elle ne garantit pas que son résultat a été persisté en mémoire.
 
 `run()` n'attend pas les listeners. Les événements peuvent être livrés avant ou
 après son retour, et un listener lent retarde les événements suivants ainsi que

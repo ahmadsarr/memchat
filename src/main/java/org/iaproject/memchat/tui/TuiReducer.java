@@ -31,8 +31,38 @@ public final class TuiReducer {
             }
             case TOOL_EXECUTION -> {
                 activities.add(new TuiState.ToolActivity(event.message(), "{}",
-                        TuiState.ToolStatus.RUNNING, -1, "", step));
+                        TuiState.ToolStatus.RUNNING, -1, "", step,
+                        event.toolExecution() == null ? null : event.toolExecution().callId()));
                 status = TuiState.Status.TOOL;
+            }
+            case TOOL_COMPLETED -> {
+                var tool = event.toolExecution();
+                if (tool != null && tool.result() != null) {
+                    var result = tool.result();
+                    String detail = result.success() ? result.result() : result.error();
+                    if (!result.success() && (detail == null || detail.isBlank())) detail = "Erreur inconnue";
+                    var activity = new TuiState.ToolActivity(tool.name(), "{}",
+                            result.success() ? TuiState.ToolStatus.OK : TuiState.ToolStatus.ERROR,
+                            tool.durationMillis(), detail, step, tool.callId());
+                    int index = -1;
+                    for (int i = activities.size() - 1; i >= 0; i--) {
+                        var running = activities.get(i);
+                        if (running.status() == TuiState.ToolStatus.RUNNING
+                                && (tool.callId() != null ? tool.callId().equals(running.callId())
+                                : tool.name().equals(running.name()))) {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index < 0) activities.add(activity);
+                    else activities.set(index, activity);
+                    notice = result.success() ? null : "Échec de " + tool.name() + " : " + detail;
+                    if (!result.success()) {
+                        addIfNew(transcript, new TuiState.TranscriptEntry(TuiState.Role.ERROR, notice));
+                    }
+                    // A failed tool can be retried by the agent; it does not fail the whole run.
+                    status = TuiState.Status.THINKING;
+                }
             }
             case ERROR -> {
                 addIfNew(transcript, new TuiState.TranscriptEntry(TuiState.Role.ERROR, event.message()));
@@ -81,7 +111,7 @@ public final class TuiReducer {
             if (activity.status() == TuiState.ToolStatus.RUNNING) {
                 activities.set(i, new TuiState.ToolActivity(activity.name(), activity.arguments(),
                         status, activity.durationMillis() < 0 ? 0 : activity.durationMillis(),
-                        activity.result(), activity.step()));
+                        activity.result(), activity.step(), activity.callId()));
             }
         }
     }

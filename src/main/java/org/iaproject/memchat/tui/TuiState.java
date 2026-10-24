@@ -51,7 +51,12 @@ public record TuiState(
     public enum Role { USER, ASSISTANT, SYSTEM, ERROR }
 
     public record ToolActivity(String name, String arguments, ToolStatus status,
-                               long durationMillis, String result, int step) {
+                               long durationMillis, String result, int step, String callId) {
+        public ToolActivity(String name, String arguments, ToolStatus status,
+                            long durationMillis, String result, int step) {
+            this(name, arguments, status, durationMillis, result, step, null);
+        }
+
         public ToolActivity {
             name = name == null ? "unknown" : name;
             arguments = arguments == null ? "{}" : arguments;

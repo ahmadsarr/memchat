@@ -75,9 +75,12 @@ public final class TuiApplication {
             boolean dirty = true;
             TerminalSize lastSize = null;
             while (!closing) {
+                TerminalSize newSize = screen.doResizeIfNecessary();
+                if (newSize != null) dirty = true;
                 AgentEvent event;
                 while ((event = events.poll()) != null) {
                     state = TuiReducer.reduce(state, event);
+                    notice = state.notice();
                     dirty = true;
                 }
                 String currentQuestion;
@@ -234,6 +237,11 @@ public final class TuiApplication {
         TerminalSize size = screen.getTerminalSize();
         int width = size.getColumns();
         int height = size.getRows();
+        if (width <= 0 || height <= 0) {
+            screen.setCursorPosition(null);
+            screen.refresh();
+            return;
+        }
         TextGraphics graphics = screen.newTextGraphics();
         graphics.setForegroundColor(TextColor.ANSI.WHITE);
 
@@ -242,6 +250,13 @@ public final class TuiApplication {
         String blankLine = " ".repeat(Math.max(0, width));
         for (int row = 0; row < height; row++) {
             graphics.putString(0, row, blankLine);
+        }
+
+        if (width < 3 || height < 5) {
+            graphics.putString(0, 0, truncate("Terminal trop petit", width));
+            screen.setCursorPosition(null);
+            screen.refresh();
+            return;
         }
 
         List<String> lines = conversationLines(width);
