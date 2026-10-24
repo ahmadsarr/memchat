@@ -31,6 +31,10 @@ public record TuiState(
         return new TuiState(transcript, activities, model, step, usage, status, value, notice);
     }
 
+    public TuiState withActivities(List<ToolActivity> value) {
+        return new TuiState(transcript, value, model, step, usage, status, input, notice);
+    }
+
     public TuiState withNotice(String value) {
         return new TuiState(transcript, activities, model, step, usage, status, input, value);
     }

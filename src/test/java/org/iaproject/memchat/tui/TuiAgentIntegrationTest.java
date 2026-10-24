@@ -25,6 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -56,6 +57,7 @@ class TuiAgentIntegrationTest {
 
     @Test
     void showsAToolFailureEvenWhenTheAgentRecoversAndSucceeds() throws Exception {
+        AtomicLong clock = new AtomicLong();
         CountDownLatch allowRecovery = new CountDownLatch(1);
         AtomicInteger calls = new AtomicInteger();
         List<AgentEvent> events = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -77,13 +79,21 @@ class TuiAgentIntegrationTest {
              var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             loop.subscribe(events::add);
             RecordingScreen screen = new RecordingScreen();
-            var ui = executor.submit(() -> { new TuiApplication(loop, "mock").run(screen, "hello"); return null; });
+            var ui = executor.submit(() -> {
+                new TuiApplication(loop, "mock", null, clock::get).run(screen, "hello");
+                return null;
+            });
             try {
                 screen.awaitFooter("Échec de explode");
                 allowRecovery.countDown();
                 var frame = screen.awaitText("Recovered answer");
                 assertTrue(frame.text().contains("explode [error]"));
                 assertTrue(frame.text().contains("tool exploded"));
+                clock.set(TimeUnit.SECONDS.toNanos(3));
+                var expired = screen.awaitFrame(value -> !value.text().contains("explode [error]")
+                        && value.footer().contains("Enter envoyer"), "expired tool notification");
+                assertTrue(expired.text().contains("tool exploded"), "The diagnostic must remain in the transcript");
+                assertTrue(expired.text().contains("Recovered answer"));
             } finally {
                 allowRecovery.countDown();
                 screen.keys.offer(new KeyStroke(KeyType.EOF));
@@ -98,6 +108,52 @@ class TuiAgentIntegrationTest {
         assertEquals("failing-call", completion.toolExecution().callId());
         assertFalse(completion.toolExecution().result().success());
         assertEquals(AgentRunState.SUCCEEDED, run.result().status());
+    }
+
+    @Test
+    void keepsARunningToolVisibleAndExpiresItsSuccessAfterCompletionWithoutMoreInput() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        LLmApiClient client = (messages, tools) -> calls.getAndIncrement() == 0
+                ? new LLmApiClient.ChatResponse(null,
+                        List.of(new LLmApiClient.ToolCall("waiting-call", "waitForRelease", "{}")))
+                : new LLmApiClient.ChatResponse("Done", List.of());
+        MemoryManager memory = new MemoryManager(new Recall(), new Archive(), (summary, messages) -> summary);
+        try (AgentLoop loop = new AgentLoop(2, client, memory, new WaitingTool(release));
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            RecordingScreen screen = new RecordingScreen();
+            var ui = executor.submit(() -> {
+                new TuiApplication(loop, "mock", null, clock::get).run(screen, "hello");
+                return null;
+            });
+            try {
+                screen.awaitText("waitForRelease [running]");
+                clock.set(TimeUnit.SECONDS.toNanos(10));
+                screen.terminal.setTerminalSize(new TerminalSize(100, 30));
+                assertTrue(screen.awaitSize(new TerminalSize(100, 30)).text().contains("waitForRelease [running]"));
+                release.countDown();
+                screen.awaitText("waitForRelease [ok]");
+                clock.set(TimeUnit.SECONDS.toNanos(13));
+                screen.awaitFrame(frame -> frame.text().contains("Done")
+                        && !frame.text().contains("waitForRelease"), "expired successful tool activity");
+            } finally {
+                release.countDown();
+                screen.keys.offer(new KeyStroke(KeyType.EOF));
+                ui.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    public static final class WaitingTool {
+        private final CountDownLatch release;
+        WaitingTool(CountDownLatch release) { this.release = release; }
+
+        @Tool(description = "Wait for the UI test to release the tool")
+        public String waitForRelease() throws InterruptedException {
+            if (!release.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Tool not released");
+            return "released";
+        }
     }
 
     public static final class FailingTool {

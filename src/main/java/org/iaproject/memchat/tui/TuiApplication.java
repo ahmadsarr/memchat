@@ -15,7 +15,12 @@ import org.iaproject.memchat.agent.AgentLoop;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -23,9 +28,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** Full-screen Lanterna UI with a stable editor at the bottom of the screen. */
 public final class TuiApplication {
+    private static final long TOOL_DISPLAY_NANOS = TimeUnit.SECONDS.toNanos(3);
     private final AgentLoop agent;
     private final String model;
     private final TuiUserInteraction interaction;
+    private final LongSupplier nanoTime;
+    private final Map<TuiState.ToolActivity, Long> completedTools = new IdentityHashMap<>();
+    private String transientToolNotice;
+    private long toolNoticeStartedAt;
     private TuiState state;
     private String input = "";
     private final List<String> history = new ArrayList<>();
@@ -44,9 +54,14 @@ public final class TuiApplication {
     }
 
     private TuiApplication(AgentLoop agent, String model, TuiUserInteraction interaction) {
+        this(agent, model, interaction, System::nanoTime);
+    }
+
+    TuiApplication(AgentLoop agent, String model, TuiUserInteraction interaction, LongSupplier nanoTime) {
         this.agent = agent;
         this.model = model;
         this.interaction = interaction;
+        this.nanoTime = nanoTime;
         this.state = TuiState.initial(model);
     }
 
@@ -81,6 +96,11 @@ public final class TuiApplication {
                 while ((event = events.poll()) != null) {
                     state = TuiReducer.reduce(state, event);
                     notice = state.notice();
+                    if (event.type() == AgentEvent.Type.TOOL_COMPLETED && event.toolExecution() != null
+                            && event.toolExecution().result() != null && !event.toolExecution().result().success()) {
+                        transientToolNotice = notice;
+                        toolNoticeStartedAt = nanoTime.getAsLong();
+                    }
                     dirty = true;
                 }
                 String currentQuestion;
@@ -100,6 +120,7 @@ public final class TuiApplication {
                     lastSize = currentSize;
                     dirty = true;
                 }
+                dirty |= expireToolDisplay();
                 if (dirty) {
                     draw(screen);
                     dirty = false;
@@ -122,6 +143,36 @@ public final class TuiApplication {
             executor.close();
             screen.close();
         }
+    }
+
+    private boolean expireToolDisplay() {
+        long now = nanoTime.getAsLong();
+        boolean changed = false;
+        completedTools.keySet().retainAll(state.activities());
+        List<TuiState.ToolActivity> visible = new ArrayList<>();
+        for (var activity : state.activities()) {
+            if (activity.status() == TuiState.ToolStatus.RUNNING) {
+                visible.add(activity);
+            } else {
+                long completedAt = completedTools.computeIfAbsent(activity, ignored -> now);
+                if (now - completedAt < TOOL_DISPLAY_NANOS) {
+                    visible.add(activity);
+                } else {
+                    completedTools.remove(activity);
+                    changed = true;
+                }
+            }
+        }
+        if (changed) state = state.withActivities(visible);
+        if (transientToolNotice != null && now - toolNoticeStartedAt >= TOOL_DISPLAY_NANOS) {
+            if (Objects.equals(state.notice(), transientToolNotice)) state = state.withNotice(null);
+            if (Objects.equals(notice, transientToolNotice) && (interaction == null || !interaction.waiting())) {
+                notice = null;
+            }
+            transientToolNotice = null;
+            changed = true;
+        }
+        return changed;
     }
 
     private void handleKey(KeyStroke key, AtomicReference<TuiRunTask> currentRun,

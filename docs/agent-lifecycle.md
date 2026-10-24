@@ -129,6 +129,11 @@ même si l'agent récupère ensuite et termine avec `SUCCEEDED`. Il ne constitue
 pas un échec terminal de la demande. La notification décrit l'exécution de
 l'outil ; elle ne garantit pas que son résultat a été persisté en mémoire.
 
+Dans la TUI, l'activité d'un outil reste visible tant que l'appel est en cours.
+Son état final et sa notification d'échec disparaissent après trois secondes,
+sans nécessiter de nouvelle saisie. Le diagnostic d'échec reste dans le
+transcript ; une question en attente de réponse ne disparaît pas à cette échéance.
+
 `run()` n'attend pas les listeners. Les événements peuvent être livrés avant ou
 après son retour, et un listener lent retarde les événements suivants ainsi que
 la fermeture. La notification est en mémoire et n'est pas durable après un crash.
