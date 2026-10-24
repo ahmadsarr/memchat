@@ -219,31 +219,40 @@ Store only explicitly stated durable preferences, such as `response.language` or
 Applications needing approval before writes must add that enforcement separately.
 Values are presented as data, and current explicit user requests take precedence.
 
-The JSON repository atomically commits changes before publishing them in memory.
-It rejects corrupt profiles and bounds the profile to 50 entries, 64-character lowercase
+The memory layer validates the complete profile on load and before every write.
+The repository atomically commits changes before the memory publishes the new snapshot.
+The memory rejects invalid profiles and bounds the profile to 50 entries, 64-character lowercase
 identifier keys, 500-character values, and 4,000 total key/value characters.
-Files are plaintext; do not store credentials. Use one repository instance per user
-within one process and share it across that user's agents. Multiple instances or
-processes writing the same file are not supported.
+Files are plaintext; do not store credentials. Use one `UserPreferencesMemory` instance per user
+within one process and share it across that user's agents. Concurrent updates through
+that instance are serialized. Multiple memory instances or processes writing the same
+file are not supported.
 
 Programmatic setup:
 
 ```java
-var preferences = new FileUserPreferencesRepository(Path.of("users/alice/preferences.json"));
+var preferences = new UserPreferencesMemoryImpl(
+        new FileUserPreferencesRepository(Path.of("users/alice/preferences.json")));
 try (var agent = AgentBuilder.builder()
         .model("your-model")
-        .userPreferencesRepository(preferences)
+        .userPreferencesMemory(preferences)
         .build()) {
     agent.run("Remember that I prefer concise answers.");
 }
 ```
 
-With a custom `MemoryManager`, pass `new UserPreferencesMemoryImpl(preferences)` to its four-argument constructor
+With a custom `MemoryManager`, pass that same `preferences` instance to its four-argument constructor
 and register `new UserPreferencesTools(memoryManager)` using `.tool(...)` instead.
-Combining a custom manager with `.userPreferencesRepository(...)` fails explicitly
+Combining a custom manager with a builder preference configuration fails explicitly
 rather than silently wiring two different preference stores.
 
 Preferences follow the same layering as recall memory:
 `UserPreferencesTools → MemoryManager → UserPreferencesMemory → UserPreferencesRepository`.
-`UserPreferencesMemoryImpl` validates individual operations and delegates persistence
-to `FileUserPreferencesRepository`, which enforces the complete profile budget atomically.
+`UserPreferencesMemoryImpl` owns validation, the complete profile budget and immutable
+snapshots. `UserPreferencesRepository` exposes only `load()` and atomic `save(profile)`;
+a different backend can implement that contract without changing tools or the agent.
+The JSON format remains a plain key/value object, so existing preference files still load.
+`AgentBuilder.userPreferencesRepository(repository)` remains a convenience for constructing
+one memory instance; reuse the builder or inject `.userPreferencesMemory(memory)` to share
+that instance across agents. A multi-process backend would need a versioned or transactional
+update contract before multiple memory instances could safely write the same user profile.

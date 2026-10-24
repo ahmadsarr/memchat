@@ -2,9 +2,11 @@ package org.iaproject.memchat.memory;
 
 import java.util.Map;
 
-/** A bounded preference profile for one user. Implementations must return immutable snapshots. */
+/** Persistence of one user's complete profile. No business rules belong here. */
 public interface UserPreferencesRepository {
-    Map<String, String> list();
-    void set(String key, String value);
-    void remove(String key);
+    /** Returns the stored profile, or an empty profile if none exists. */
+    Map<String, String> load();
+
+    /** Atomically replaces the profile; failure must leave the previous snapshot intact. */
+    void save(Map<String, String> profile);
 }

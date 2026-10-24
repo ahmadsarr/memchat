@@ -9,6 +9,7 @@ import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.memory.MemoryToolsImpl;
 import org.iaproject.memchat.memory.RecallStorageRepository;
 import org.iaproject.memchat.memory.UserPreferencesRepository;
+import org.iaproject.memchat.memory.UserPreferencesMemory;
 import org.iaproject.memchat.tools.UserPreferencesTools;
 import org.iaproject.memchat.memory.impl.ArchivalMemoryImpl;
 import org.iaproject.memchat.memory.impl.UserPreferencesMemoryImpl;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class AgentBuilder {
-    private UserPreferencesRepository userPreferences;
+    private UserPreferencesMemory userPreferences;
     private String baseUrl = "http://127.0.0.1:11434/v1";
     private String model;
     private String apiKey = "ollama";
@@ -104,7 +105,12 @@ public class AgentBuilder {
     }
 
     public AgentBuilder userPreferencesRepository(UserPreferencesRepository repository) {
-        this.userPreferences = Objects.requireNonNull(repository);
+        return userPreferencesMemory(new UserPreferencesMemoryImpl(repository));
+    }
+
+    /** Share one memory instance across all agents belonging to the same user. */
+    public AgentBuilder userPreferencesMemory(UserPreferencesMemory memory) {
+        this.userPreferences = Objects.requireNonNull(memory);
         return this;
     }
 
@@ -129,7 +135,7 @@ public class AgentBuilder {
             var compact = new OpenAICompactStrategy(llmClient);
             agentMemory = userPreferences == null
                     ? new MemoryManager(recall, archive, compact)
-                    : new MemoryManager(recall, archive, compact, new UserPreferencesMemoryImpl(userPreferences));
+                    : new MemoryManager(recall, archive, compact, userPreferences);
         }
 
         List<Object> registeredTools = new ArrayList<>(tools);
