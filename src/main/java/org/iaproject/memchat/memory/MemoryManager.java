@@ -13,6 +13,7 @@ import java.util.List;
 
 public class MemoryManager {
 
+    private final UserMemory userMemory;
     private final WorkingMemory workingMemory;
     private final RecallStorage recallStorage;
     private final ArchivalMemory archivalStorage;
@@ -24,8 +25,10 @@ public class MemoryManager {
             RecallStorage recallStorage,
             ArchivalMemory archivalStorage,
             ContextControlStrategy contextControlStrategy,
-            CompactStrategy compactStrategy
+            CompactStrategy compactStrategy,
+            UserMemory userMemory
     ) {
+        this.userMemory = userMemory;
         this.workingMemory = workingMemory;
         this.recallStorage = recallStorage;
         this.archivalStorage = archivalStorage;
@@ -38,9 +41,20 @@ public class MemoryManager {
             ArchivalMemory archivalStorage,
             CompactStrategy compactStrategy
     ) {
-        this(new WorkingMemoryImpl(), recallStorage, archivalStorage, new ContextControlStrategyImpl(), compactStrategy);
+        this(new WorkingMemoryImpl(), recallStorage, archivalStorage, new ContextControlStrategyImpl(), compactStrategy, null);
     }
 
+
+    public MemoryManager(
+            RecallStorage recallStorage,
+            ArchivalMemory archivalStorage,
+            CompactStrategy compactStrategy,
+            UserMemory userMemory
+    ) {
+        this(new WorkingMemoryImpl(), recallStorage, archivalStorage,
+                new ContextControlStrategyImpl(), compactStrategy,
+                java.util.Objects.requireNonNull(userMemory));
+    }
 
     public String archive(String content) {
         return archivalStorage.insert(content);
@@ -101,6 +115,10 @@ public class MemoryManager {
         List<ChatMessage> context = new ArrayList<>();
 
         context.add(ChatMessage.system(PromptBuilder.SYSTEM));
+        if (userMemory != null) {
+            context.add(ChatMessage.system("USER MEMORY DATA (JSON):\n"
+                    + Utils.json(userMemory.list())));
+        }
         context.add(ChatMessage.system(summary));
         context.addAll(messages);
         return List.copyOf(context);

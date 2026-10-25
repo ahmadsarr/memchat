@@ -204,3 +204,61 @@ thread. Sessions are not thread-safe or reentrant: the application owns exclusiv
 access, asynchronous execution and shutdown coordination. Use `try-with-resources`
 to close the session at the end of a conversation. See [the lifecycle contract](docs/agent-lifecycle.md)
 for results, interruption, event delivery, memory recovery, and migration notes.
+
+## User preferences
+
+Enable a dedicated user profile with `--user-preferences users/alice/preferences.json`.
+Without this option, no preference file is opened and no preference tools are registered.
+Use a different file per user; reusing that file across conversations preserves the profile.
+This does not change the storage or isolation of working, recall, or archival memory.
+
+The agent receives the current profile in each model context and can use
+`preferencesList`, `preferenceSet(key, value)`, and `preferenceRemove(key)`.
+Store only explicitly stated durable preferences, such as `response.language` or
+`response.style`. These rules guide the model; they are not an authorization check.
+Applications needing approval before writes must add that enforcement separately.
+Values are presented as data, and current explicit user requests take precedence.
+
+The memory layer validates the complete profile on load and before every write.
+The repository atomically commits changes before the memory publishes the new snapshot.
+The memory rejects invalid profiles and bounds the profile to 50 entries, 64-character lowercase
+identifier keys, 500-character values, and 4,000 total key/value characters.
+Files are plaintext; do not store credentials. Use one `UserMemory` instance per user
+within one process and share it across that user's agents. Concurrent updates through
+that instance are serialized. Multiple memory instances or processes writing the same
+file are not supported.
+
+Programmatic setup:
+
+```java
+var preferences = new UserMemoryImpl(
+        new FileUserPreferencesRepository(Path.of("users/alice/preferences.json")));
+try (var agent = AgentBuilder.builder()
+        .model("your-model")
+        .userMemory(preferences)
+        .build()) {
+    agent.run("Remember that I prefer concise answers.");
+}
+```
+
+With a custom `MemoryManager`, pass that same `preferences` instance to its four-argument constructor
+and register `new UserPreferencesTools(preferences)` using `.tool(...)` instead.
+Combining a custom manager with a builder preference configuration fails explicitly
+rather than silently wiring two different preference stores.
+
+Preferences follow the same layering as recall memory:
+`UserPreferencesTools → UserMemory → UserPreferencesRepository`.
+`UserMemoryImpl` owns validation, the complete profile budget and immutable
+snapshots. `UserPreferencesRepository` exposes only `load()` and atomic `save(profile)`;
+a different backend can implement that contract without changing tools or the agent.
+The JSON format remains a plain key/value object, so existing preference files still load.
+`AgentBuilder.userPreferencesRepository(repository)` remains a convenience for constructing
+one memory instance; reuse the builder or inject `.userMemory(memory)` to share
+that instance across agents. A multi-process backend would need a versioned or transactional
+update contract before multiple memory instances could safely write the same user profile.
+
+`MemoryManager` and `UserPreferencesTools` receive the same `UserMemory` interface;
+the tools do not depend on the manager. Behavioral instructions are centralized in
+`PromptBuilder.SYSTEM`; the manager only adds the current JSON profile as a data block.
+The existing preference tool names and JSON format are preserved. The structured
+representation of personal facts and hypotheses remains a separate evolution.

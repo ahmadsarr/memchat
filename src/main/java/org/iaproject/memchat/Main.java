@@ -6,6 +6,7 @@ import org.iaproject.memchat.agent.AgentRunState;
 import org.iaproject.memchat.cli.MemchatArg;
 import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
 import org.iaproject.memchat.memory.impl.LuceneArchivalMemoryRepository;
+import org.iaproject.memchat.memory.impl.FileUserPreferencesRepository;
 import picocli.CommandLine;
 import java.io.IOException;
 
@@ -36,36 +37,40 @@ public class Main {
             return;
         }
         try (LuceneArchivalMemoryRepository archive = memchatArg.archiveIndex == null ? null
-                : new LuceneArchivalMemoryRepository(memchatArg.archiveIndex);
-             AgentLoop agentLoop = AgentBuilder.builder()
+                : new LuceneArchivalMemoryRepository(memchatArg.archiveIndex)) {
+            AgentBuilder builder = AgentBuilder.builder()
                 .baseUrl(memchatArg.baseUrl)
                 .model(memchatArg.model)
                 .apiKey(memchatArg.apiKey)
                 .maxSteps(memchatArg.maxSteps)
                 .archivalMemoryRepository(archive == null ? new FileArchivalMemoryRepository() : archive)
-                .userInteraction(console)
-                .build()) {
-            agentLoop.subscribe(event -> {
-                switch (event.type()) {
-                    case AGENT_MESSAGE, RUN_COMPLETED -> { /* Printed from the direct result below. */ }
-                    case TOOL_COMPLETED -> { /* Detailed tool outcomes are consumed by the TUI. */ }
-                    case TOOL_EXECUTION -> System.out.println("Execute: " + event.message());
-                    default -> System.out.println(event.message());
-                }
-            });
-            while (!shouldExit(instruction)) {
-                if (!instruction.isBlank()) {
-                    var result = agentLoop.run(instruction);
-                    if (result.status() == AgentRunState.SUCCEEDED) {
-                        System.out.println("Agent> " + result.finalResponse());
-                    } else {
-                        System.err.println("Agent: " + result.status()
-                                + (result.failure() == null ? "" : " - " + result.failure().message()));
+                .userInteraction(console);
+            if (memchatArg.userPreferences != null) {
+                builder.userPreferencesRepository(new FileUserPreferencesRepository(memchatArg.userPreferences));
+            }
+            try (AgentLoop agentLoop = builder.build()) {
+                agentLoop.subscribe(event -> {
+                    switch (event.type()) {
+                        case AGENT_MESSAGE, RUN_COMPLETED -> { /* Printed from the direct result below. */ }
+                        case TOOL_COMPLETED -> { /* Detailed tool outcomes are consumed by the TUI. */ }
+                        case TOOL_EXECUTION -> System.out.println("Execute: " + event.message());
+                        default -> System.out.println(event.message());
                     }
-                    if (result.recoveryRequired()
-                            || result.status() == AgentRunState.CANCELLED) break;
+                });
+                while (!shouldExit(instruction)) {
+                    if (!instruction.isBlank()) {
+                        var result = agentLoop.run(instruction);
+                        if (result.status() == AgentRunState.SUCCEEDED) {
+                            System.out.println("Agent> " + result.finalResponse());
+                        } else {
+                            System.err.println("Agent: " + result.status()
+                                    + (result.failure() == null ? "" : " - " + result.failure().message()));
+                        }
+                        if (result.recoveryRequired()
+                                || result.status() == AgentRunState.CANCELLED) break;
+                    }
+                    instruction = console.read();
                 }
-                instruction = console.read();
             }
         }
     }
