@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,6 +54,33 @@ class SessionTest {
         }
     }
 
+    @Test
+    void repositoryFactoriesCreateSeparateBackendsForTheSameConfig() {
+        List<Path> archiveDirectories = new ArrayList<>();
+        List<Path> recallDirectories = new ArrayList<>();
+        AgentConfig config = new AgentConfig(
+                "http://localhost", "test", "key", 1,
+                (sessionId, directory) -> {
+                    archiveDirectories.add(directory);
+                    return new FileArchivalMemoryRepository(directory.resolve("memory.json"));
+                },
+                (sessionId, directory) -> {
+                    recallDirectories.add(directory);
+                    return new FileRecallStorageRepository(directory.resolve("recall.json"));
+                },
+                interaction());
+
+        try (SessionManager manager = new SessionManager(temporaryDirectory)) {
+            Session first = manager.create(config);
+            Session second = manager.create(config);
+
+            assertNotEquals(first.id(), second.id());
+            assertEquals(List.of(temporaryDirectory.resolve(first.id().toString()),
+                    temporaryDirectory.resolve(second.id().toString())), archiveDirectories);
+            assertEquals(archiveDirectories, recallDirectories);
+        }
+    }
+
     private AgentLoop agent() {
         return AgentBuilder.builder()
                 .client((messages, tools) -> new org.iaproject.memchat.llm.LLmApiClient.ChatResponse("answer", List.of()))
@@ -71,6 +99,6 @@ class SessionTest {
     }
 
     private static AgentConfig config() {
-        return new AgentConfig("http://localhost", "test", "key", 1, null, null, interaction());
+        return AgentConfig.isolated("http://localhost", "test", "key", 1, interaction());
     }
 }

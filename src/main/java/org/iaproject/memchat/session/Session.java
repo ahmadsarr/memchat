@@ -6,8 +6,6 @@ import org.iaproject.memchat.agent.AgentListener;
 import org.iaproject.memchat.agent.AgentLoop;
 import org.iaproject.memchat.agent.AgentRunResult;
 import org.iaproject.memchat.memory.ArchivalMemoryRepository;
-import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
-import org.iaproject.memchat.memory.impl.FileRecallStorageRepository;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -18,15 +16,26 @@ public final class Session implements AutoCloseable {
     private final AgentLoop agentLoop;
     private final UUID sessionId;
     private final LocalDateTime createdAt;
+    private final Object lifecycleLock = new Object();
     private LocalDateTime lastUpdate;
+    private boolean runActive;
+    private Thread activeRunThread;
+    private boolean closing;
+    private boolean closed;
 
     public Session(String baseUrl, String model, String apiKey, int maxSteps, ArchivalMemoryRepository archive, UserInteraction console) {
-        this(new AgentConfig(baseUrl, model, apiKey, maxSteps, archive, null, console));
+        this(archive == null
+                ? AgentConfig.isolated(baseUrl, model, apiKey, maxSteps, console)
+                : AgentConfig.withSharedRepositories(baseUrl, model, apiKey, maxSteps,
+                archive, null, console));
     }
 
     public Session(String baseUrl, String model, String apiKey, int maxSteps, ArchivalMemoryRepository archive,
                    UserInteraction console, Path storageRoot) {
-        this(new AgentConfig(baseUrl, model, apiKey, maxSteps, archive, null, console), storageRoot);
+        this(archive == null
+                ? AgentConfig.isolated(baseUrl, model, apiKey, maxSteps, console)
+                : AgentConfig.withSharedRepositories(baseUrl, model, apiKey, maxSteps,
+                archive, null, console), storageRoot);
     }
 
     public Session(AgentConfig config) {
@@ -37,17 +46,19 @@ public final class Session implements AutoCloseable {
         Objects.requireNonNull(config, "config");
         this.sessionId = UUID.randomUUID();
         Path storageDirectory = Objects.requireNonNull(storageRoot, "storageRoot").resolve(sessionId.toString());
+        ArchivalMemoryRepository archive = Objects.requireNonNull(
+                config.archivalMemoryFactory().create(sessionId, storageDirectory),
+                "archival memory factory returned null");
+        var recall = Objects.requireNonNull(
+                config.recallStorageFactory().create(sessionId, storageDirectory),
+                "recall storage factory returned null");
         this.agentLoop = AgentBuilder.builder()
                 .baseUrl(config.baseUrl())
                 .model(config.model())
                 .apiKey(config.apiKey())
                 .maxSteps(config.maxSteps())
-                .archivalMemoryRepository(config.archivalMemoryRepository() == null
-                        ? new FileArchivalMemoryRepository(storageDirectory.resolve("memory.json"))
-                        : config.archivalMemoryRepository())
-                .recallStorageRepository(config.recallStorageRepository() == null
-                        ? new FileRecallStorageRepository(storageDirectory.resolve("recall.json"))
-                        : config.recallStorageRepository())
+                .archivalMemoryRepository(archive)
+                .recallStorageRepository(recall)
                 .userInteraction(config.userInteraction())
                 .build();
         this.createdAt = lastUpdate = LocalDateTime.now();
@@ -72,25 +83,109 @@ public final class Session implements AutoCloseable {
     }
 
     public AgentRunResult run(String instruction) {
-        AgentRunResult result = agentLoop.run(instruction);
-        lastUpdate = LocalDateTime.now();
-        return result;
+        beginRun();
+        try {
+            AgentRunResult result = agentLoop.run(instruction);
+            lastUpdate = LocalDateTime.now();
+            return result;
+        } finally {
+            endRun();
+        }
     }
 
     public AutoCloseable subscribe(AgentListener listener) {
-        return agentLoop.subscribe(listener);
+        synchronized (lifecycleLock) {
+            requireAcceptingOperations();
+            return agentLoop.subscribe(listener);
+        }
     }
 
     public AgentLoop.State state() {
-        return agentLoop.state();
+        synchronized (lifecycleLock) {
+            return agentLoop.state();
+        }
     }
 
     public boolean recoveryRequired() {
-        return agentLoop.recoveryRequired();
+        synchronized (lifecycleLock) {
+            return agentLoop.recoveryRequired();
+        }
     }
 
     @Override
     public void close() {
-        agentLoop.close();
+        boolean interrupted = false;
+        synchronized (lifecycleLock) {
+            if (closed) {
+                return;
+            }
+            if (closing) {
+                if (activeRunThread == Thread.currentThread()) {
+                    throw new IllegalStateException("Cannot close a session from its active run");
+                }
+                while (!closed) {
+                    try {
+                        lifecycleLock.wait();
+                    } catch (InterruptedException exception) {
+                        interrupted = true;
+                    }
+                }
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                return;
+            }
+            if (activeRunThread == Thread.currentThread()) {
+                throw new IllegalStateException("Cannot close a session from its active run");
+            }
+            closing = true;
+            while (runActive) {
+                try {
+                    lifecycleLock.wait();
+                } catch (InterruptedException exception) {
+                    interrupted = true;
+                }
+            }
+        }
+
+        try {
+            agentLoop.close();
+        } finally {
+            synchronized (lifecycleLock) {
+                closed = true;
+                lifecycleLock.notifyAll();
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void beginRun() {
+        synchronized (lifecycleLock) {
+            requireAcceptingOperations();
+            if (runActive) {
+                throw new IllegalStateException("A run is already in progress");
+            }
+            runActive = true;
+            activeRunThread = Thread.currentThread();
+        }
+    }
+
+    private void endRun() {
+        synchronized (lifecycleLock) {
+            runActive = false;
+            activeRunThread = null;
+            lifecycleLock.notifyAll();
+        }
+    }
+
+    private void requireAcceptingOperations() {
+        if (closed) {
+            throw new IllegalStateException("Session is CLOSED");
+        }
+        if (closing) {
+            throw new IllegalStateException("Session is CLOSING");
+        }
     }
 }
