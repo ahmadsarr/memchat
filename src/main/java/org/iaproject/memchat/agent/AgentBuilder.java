@@ -9,10 +9,10 @@ import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.memory.MemoryToolsImpl;
 import org.iaproject.memchat.memory.RecallStorageRepository;
 import org.iaproject.memchat.memory.UserPreferencesRepository;
-import org.iaproject.memchat.memory.UserPreferencesMemory;
+import org.iaproject.memchat.memory.UserMemory;
 import org.iaproject.memchat.tools.UserPreferencesTools;
 import org.iaproject.memchat.memory.impl.ArchivalMemoryImpl;
-import org.iaproject.memchat.memory.impl.UserPreferencesMemoryImpl;
+import org.iaproject.memchat.memory.impl.UserMemoryImpl;
 import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
 import org.iaproject.memchat.memory.impl.FileRecallStorageRepository;
 import org.iaproject.memchat.memory.impl.RecallStorageImpl;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class AgentBuilder {
-    private UserPreferencesMemory userPreferences;
+    private UserMemory userMemory;
     private String baseUrl = "http://127.0.0.1:11434/v1";
     private String model;
     private String apiKey = "ollama";
@@ -105,17 +105,21 @@ public class AgentBuilder {
     }
 
     public AgentBuilder userPreferencesRepository(UserPreferencesRepository repository) {
-        return userPreferencesMemory(new UserPreferencesMemoryImpl(repository));
+        return userPreferencesMemory(new UserMemoryImpl(repository));
     }
 
     /** Share one memory instance across all agents belonging to the same user. */
-    public AgentBuilder userPreferencesMemory(UserPreferencesMemory memory) {
-        this.userPreferences = Objects.requireNonNull(memory);
+    public AgentBuilder userPreferencesMemory(UserMemory memory) {
+        return userMemory(memory);
+    }
+
+    public AgentBuilder userMemory(UserMemory memory) {
+        this.userMemory = Objects.requireNonNull(memory);
         return this;
     }
 
     public AgentLoop build() {
-        if (memoryManager != null && userPreferences != null) {
+        if (memoryManager != null && userMemory != null) {
             throw new IllegalStateException("Configure preferences on the custom MemoryManager and register its tools explicitly");
         }
         LLmApiClient llmClient = client != null
@@ -133,15 +137,15 @@ public class AgentBuilder {
             var archive = new ArchivalMemoryImpl(archivalMemoryRepository != null
                     ? archivalMemoryRepository : new FileArchivalMemoryRepository());
             var compact = new OpenAICompactStrategy(llmClient);
-            agentMemory = userPreferences == null
+            agentMemory = userMemory == null
                     ? new MemoryManager(recall, archive, compact)
-                    : new MemoryManager(recall, archive, compact, userPreferences);
+                    : new MemoryManager(recall, archive, compact, userMemory);
         }
 
         List<Object> registeredTools = new ArrayList<>(tools);
         registeredTools.add(new MemoryToolsImpl(agentMemory));
-        if (userPreferences != null) {
-            registeredTools.add(new UserPreferencesTools(agentMemory));
+        if (userMemory != null) {
+            registeredTools.add(new UserPreferencesTools(userMemory));
         }
         registeredTools.add(new UserInteractionTools(userInteraction));
 

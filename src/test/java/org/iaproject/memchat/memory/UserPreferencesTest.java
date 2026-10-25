@@ -19,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class UserPreferencesTest {
     @TempDir Path directory;
 
-    private static UserPreferencesMemory memory(Path file) {
-        return new UserPreferencesMemoryImpl(new FileUserPreferencesRepository(file));
+    private static UserMemory memory(Path file) {
+        return new UserMemoryImpl(new FileUserPreferencesRepository(file));
     }
 
     @Test
@@ -73,6 +73,27 @@ class UserPreferencesTest {
     }
 
     @Test
+    void toolsAcceptUserMemoryWithoutManagerOrRepository() throws Exception {
+        var values = new java.util.LinkedHashMap<String, String>();
+        UserMemory memory = new UserMemory() {
+            public Map<String, String> list() { return Map.copyOf(values); }
+            public void set(String key, String value) { values.put(key, value); }
+            public void remove(String key) { values.remove(key); }
+        };
+        var executor = new org.iaproject.memchat.action.ActionExecutor(
+                org.iaproject.memchat.tools.ToolParser.parse(List.of(
+                        new org.iaproject.memchat.tools.UserPreferencesTools(memory))));
+        assertTrue(executor.execute("preferenceSet", "{\"key\":\"response.language\",\"value\":\"French\"}").success());
+        assertEquals(Map.of("response.language", "French"), values);
+        var listed = executor.execute("preferencesList", "{}");
+        assertTrue(listed.success());
+        var result = new com.fasterxml.jackson.databind.ObjectMapper().readTree(listed.result());
+        assertEquals("French", result.path("preferences").path("response.language").asText());
+        assertTrue(executor.execute("preferenceRemove", "{\"key\":\"response.language\"}").success());
+        assertTrue(values.isEmpty());
+    }
+
+    @Test
     void validatesProfilesWithAnyBackendAndRetainsStateAfterFailedSave() {
         class Repository implements UserPreferencesRepository {
             Map<String, String> stored = Map.of("language", "French");
@@ -84,7 +105,7 @@ class UserPreferencesTest {
             }
         }
         var repository = new Repository();
-        var memory = new UserPreferencesMemoryImpl(repository);
+        var memory = new UserMemoryImpl(repository);
         Map<String, String> original = memory.list();
         repository.fail = true;
         assertThrows(IllegalStateException.class, () -> memory.set("language", "English"));
@@ -96,7 +117,7 @@ class UserPreferencesTest {
         assertEquals("French", original.get("language"));
         assertThrows(UnsupportedOperationException.class, () -> repository.stored.put("x", "y"));
         repository.stored = Map.of("Invalid key", "value");
-        assertThrows(IllegalStateException.class, () -> new UserPreferencesMemoryImpl(repository));
+        assertThrows(IllegalStateException.class, () -> new UserMemoryImpl(repository));
     }
 
     @Test

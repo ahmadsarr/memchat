@@ -1,6 +1,6 @@
 package org.iaproject.memchat.memory.impl;
 
-import org.iaproject.memchat.memory.UserPreferencesMemory;
+import org.iaproject.memchat.memory.UserMemory;
 import org.iaproject.memchat.memory.UserPreferencesRepository;
 
 import java.util.Collections;
@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /** Owns a bounded profile. Share this instance across the user's sessions. */
-public final class UserPreferencesMemoryImpl implements UserPreferencesMemory {
+public final class UserMemoryImpl implements UserMemory {
     public static final int MAX_PREFERENCES = 50;
     public static final int MAX_KEY_LENGTH = 64;
     public static final int MAX_VALUE_LENGTH = 500;
@@ -18,7 +18,7 @@ public final class UserPreferencesMemoryImpl implements UserPreferencesMemory {
     private final UserPreferencesRepository repository;
     private Map<String, String> profile;
 
-    public UserPreferencesMemoryImpl(UserPreferencesRepository repository) {
+    public UserMemoryImpl(UserPreferencesRepository repository) {
         this.repository = Objects.requireNonNull(repository);
         Map<String, String> loaded = repository.load();
         try {
