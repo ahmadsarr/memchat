@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
-/** Publishes a complete JSON snapshot without truncating the last committed file. */
 final class AtomicJsonFile {
     private AtomicJsonFile() { }
 
@@ -17,7 +16,6 @@ final class AtomicJsonFile {
         Path temporary = Files.createTempFile(target.getParent(), ".memchat-", ".tmp");
         try {
             mapper.writerWithDefaultPrettyPrinter().writeValue(temporary.toFile(), snapshot);
-            // Fail safely if the filesystem cannot replace the snapshot atomically.
             Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } finally {
             Files.deleteIfExists(temporary);
