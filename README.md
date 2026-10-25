@@ -156,6 +156,47 @@ or rebuild the children from the source corpus before constructing a new
 composite; merely reopening mismatched indexes does not repair them. No automatic
 rollback, degraded-mode fallback, or durable cross-index transaction is claimed.
 
+## Optional terminal UI
+
+The TUI is a separate entry point and does not modify the agent loop:
+
+```sh
+java -cp target/memchat-1.0-SNAPSHOT.jar org.iaproject.memchat.tui.TuiMain --model qwen3.5:9b
+```
+
+It uses Lanterna for a full-screen transcript and fixed bottom input area,
+subscribes to the existing `AgentLoop` events and keeps the plain `Main` path
+unchanged. Use `/help`, `/clear`, `/model` or `/quit` from the TUI. Tool
+confirmation is intentionally not included yet.
+
+Scroll the transcript with PageUp/PageDown (one page with a one-line overlap),
+Home/End (first/latest page), or the mouse wheel (three lines per notch on
+terminals supporting mouse reporting). Up/Down still recall input history.
+The input area stays fixed. New messages follow the bottom only when already
+there; reading an older page preserves its top line. The status line shows the
+history position, and End resumes following. `/clear` also resets the viewport.
+Mouse reporting may require holding Shift for the terminal's native text selection.
+
+Paste with Ctrl+V (also Ctrl+Shift+V or Shift+Insert) when the application has
+access to a graphical clipboard. In an external terminal or SSH session, use
+that terminal's paste shortcut. Bracketed paste is enabled for ANSI terminals:
+multiline text is inserted as a draft, including its newlines, tabs and spaces,
+and is sent only after a separate Enter. Copied text starting with `/quit` or
+another slash command is treated as prompt text. Ctrl+C remains interrupt/quit,
+Ctrl+U clears the draft, and Alt+Enter inserts a line while typing.
+
+The input area shows a bounded single-line preview and the character count.
+Long user messages are also collapsed in the transcript view. These previews do
+not modify the full text stored in history or passed to the model. A submission
+attempt during an active run preserves the draft so it can be sent later.
+
+Multiline terminal paste requires bracketed-paste support: unbracketed input
+cannot distinguish a pasted newline from a typed Enter. An SSH server cannot
+read the client's clipboard directly; an unavailable local clipboard produces
+a message directing the user to the terminal's paste shortcut. Preview length
+is not a model-context limit or token estimate; the configured model's limits
+still apply, and provider errors are surfaced through the normal run result.
+
 ## Agent lifecycle and results
 
 `AgentLoop.run(String)` synchronously returns an `AgentRunResult` on the caller's

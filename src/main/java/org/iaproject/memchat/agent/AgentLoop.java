@@ -56,7 +56,7 @@ public class AgentLoop implements AutoCloseable {
         if (recoveryRequired) throw new IllegalStateException("Session memory requires recovery");
         UUID runId = UUID.randomUUID();
         agentProcessor.setEventPublisher(event -> eventDispatcher.publish(
-                new AgentEvent(event.type(), event.message(), runId, null)));
+                new AgentEvent(event.type(), event.message(), runId, event.result(), event.toolExecution())));
         int steps = 0;
         AgentRunResult.Stage stage = AgentRunResult.Stage.INSTRUCTION;
         boolean mutationPending = false;
