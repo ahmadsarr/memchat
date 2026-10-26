@@ -117,7 +117,8 @@ public class MemoryManager {
         context.add(ChatMessage.system(PromptBuilder.SYSTEM));
         if (userMemory != null) {
             context.add(ChatMessage.system("USER MEMORY DATA (JSON):\n"
-                    + Utils.json(userMemory.list())));
+                    + Utils.json(java.util.Map.of("profile", userMemory.profile(),
+                            "totalEntries", userMemory.entries().size()))));
         }
         context.add(ChatMessage.system(summary));
         context.addAll(messages);

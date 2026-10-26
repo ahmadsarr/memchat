@@ -20,7 +20,7 @@ class UserPreferencesTest {
     @TempDir Path directory;
 
     private static UserMemory memory(Path file) {
-        return new UserMemoryImpl(new FileUserPreferencesRepository(file));
+        return new UserMemoryImpl(new FileUserMemoryRepository(file));
     }
 
     @Test
@@ -74,17 +74,23 @@ class UserPreferencesTest {
 
     @Test
     void toolsAcceptUserMemoryWithoutManagerOrRepository() throws Exception {
-        var values = new java.util.LinkedHashMap<String, String>();
+        var values = new java.util.LinkedHashMap<String, UserMemoryEntry>();
         UserMemory memory = new UserMemory() {
-            public Map<String, String> list() { return Map.copyOf(values); }
-            public void set(String key, String value) { values.put(key, value); }
+            public Map<String, UserMemoryEntry> entries() { return Map.copyOf(values); }
+            public void store(String key, UserMemoryEntry.Type type, String content, String source) {
+                String now = java.time.Instant.now().toString();
+                values.put(key, new UserMemoryEntry(type, content, source, now, now));
+            }
+            public void confirm(String key, UserMemoryEntry.Type type, String source) { throw new UnsupportedOperationException(); }
+            public List<Match> search(String query, int limit) { return List.of(); }
+            public Map<String, UserMemoryEntry> profile() { return entries(); }
             public void remove(String key) { values.remove(key); }
         };
         var executor = new org.iaproject.memchat.action.ActionExecutor(
                 org.iaproject.memchat.tools.ToolParser.parse(List.of(
                         new org.iaproject.memchat.tools.UserPreferencesTools(memory))));
         assertTrue(executor.execute("preferenceSet", "{\"key\":\"response.language\",\"value\":\"French\"}").success());
-        assertEquals(Map.of("response.language", "French"), values);
+        assertEquals("French", values.get("response.language").content());
         var listed = executor.execute("preferencesList", "{}");
         assertTrue(listed.success());
         var result = new com.fasterxml.jackson.databind.ObjectMapper().readTree(listed.result());
@@ -95,11 +101,12 @@ class UserPreferencesTest {
 
     @Test
     void validatesProfilesWithAnyBackendAndRetainsStateAfterFailedSave() {
-        class Repository implements UserPreferencesRepository {
-            Map<String, String> stored = Map.of("language", "French");
+        class Repository implements UserMemoryRepository {
+            Map<String, UserMemoryEntry> stored = Map.of("language", new UserMemoryEntry(
+                    UserMemoryEntry.Type.PREFERENCE, "French", "User statement", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z"));
             boolean fail;
-            public Map<String, String> load() { return stored; }
-            public void save(Map<String, String> profile) {
+            public Map<String, UserMemoryEntry> load() { return stored; }
+            public void save(Map<String, UserMemoryEntry> profile) {
                 if (fail) throw new IllegalStateException("Storage unavailable");
                 stored = profile;
             }
@@ -111,12 +118,13 @@ class UserPreferencesTest {
         assertThrows(IllegalStateException.class, () -> memory.set("language", "English"));
         assertThrows(IllegalStateException.class, () -> memory.remove("language"));
         assertEquals(original, memory.list());
-        assertEquals(original, repository.stored);
+        assertEquals(original, memory.list());
+        assertEquals("French", repository.stored.get("language").content());
         repository.fail = false;
         memory.set("language", "English");
         assertEquals("French", original.get("language"));
-        assertThrows(UnsupportedOperationException.class, () -> repository.stored.put("x", "y"));
-        repository.stored = Map.of("Invalid key", "value");
+        assertThrows(UnsupportedOperationException.class, () -> repository.stored.put("x", repository.stored.get("language")));
+        repository.stored = Map.of("Invalid key", repository.stored.get("language"));
         assertThrows(IllegalStateException.class, () -> new UserMemoryImpl(repository));
     }
 
@@ -164,11 +172,11 @@ class UserPreferencesTest {
 
     @Test
     void toolUpdatesAppearInNextContextAndSurviveNewAgentWithoutSharingConversation() {
-        var preferences = new FileUserPreferencesRepository(directory.resolve("preferences.json"));
+        var preferences = new FileUserMemoryRepository(directory.resolve("preferences.json"));
         AtomicInteger calls = new AtomicInteger();
         List<List<LLmApiClient.ChatMessage>> requests = new ArrayList<>();
         var builder = AgentBuilder.builder()
-                .userPreferencesRepository(preferences)
+                .userMemoryRepository(preferences)
                 .recallStorageRepository(new FileRecallStorageRepository(directory.resolve("recall.json")))
                 .archivalMemoryRepository(new FileArchivalMemoryRepository(directory.resolve("archive.json")))
                 .client((messages, tools) -> {
@@ -180,9 +188,9 @@ class UserPreferencesTest {
                 });
         try (var first = builder.build(); var second = builder.build()) {
             assertEquals(AgentRunState.SUCCEEDED, first.run("Remember that I prefer French").status());
-            assertEquals("French", preferences.load().get("response.language"));
+            assertEquals("French", preferences.load().get("response.language").content());
             assertTrue(requests.get(1).stream().anyMatch(m -> m.content() != null
-                    && m.content().contains("\"response.language\":\"French\"")));
+                    && m.content().contains("response.language") && m.content().contains("French")));
             assertEquals(AgentRunState.SUCCEEDED, second.run("Hello again").status());
         }
         var resumed = requests.get(requests.size() - 1);

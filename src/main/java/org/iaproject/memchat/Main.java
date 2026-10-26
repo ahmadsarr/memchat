@@ -6,7 +6,7 @@ import org.iaproject.memchat.agent.AgentRunState;
 import org.iaproject.memchat.cli.MemchatArg;
 import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
 import org.iaproject.memchat.memory.impl.LuceneArchivalMemoryRepository;
-import org.iaproject.memchat.memory.impl.FileUserPreferencesRepository;
+import org.iaproject.memchat.memory.impl.FileUserMemoryRepository;
 import picocli.CommandLine;
 import java.io.IOException;
 
@@ -46,7 +46,7 @@ public class Main {
                 .archivalMemoryRepository(archive == null ? new FileArchivalMemoryRepository() : archive)
                 .userInteraction(console);
             if (memchatArg.userPreferences != null) {
-                builder.userPreferencesRepository(new FileUserPreferencesRepository(memchatArg.userPreferences));
+                builder.userMemoryRepository(new FileUserMemoryRepository(memchatArg.userPreferences));
             }
             try (AgentLoop agentLoop = builder.build()) {
                 agentLoop.subscribe(event -> {
