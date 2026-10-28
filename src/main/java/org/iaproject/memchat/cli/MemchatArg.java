@@ -28,8 +28,8 @@ public class MemchatArg implements Runnable {
             description = "Use a Lucene BM25 archive in DIRECTORY instead of the default memory.json file")
     public Path archiveIndex;
 
-    @Option(names = "--user-preferences", paramLabel = "FILE",
-            description = "Enable persistent user preferences stored in FILE; use one file per user")
+    @Option(names = {"--user-memory", "--user-preferences"}, paramLabel = "FILE",
+            description = "Enable structured user memory stored in FILE (--user-preferences is a compatibility alias)")
     public Path userPreferences;
 
     @Override

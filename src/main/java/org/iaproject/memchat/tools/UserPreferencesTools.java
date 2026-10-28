@@ -27,6 +27,9 @@ public final class UserPreferencesTools {
 
     @Tool(description = "Forget a saved preference when the user explicitly requests it.")
     public String preferenceRemove(@Param(description = "Exact preference key to remove") String key) {
+        var entry = userMemory.entries().get(key);
+        if (entry != null && entry.type() != org.iaproject.memchat.memory.UserMemoryEntry.Type.PREFERENCE)
+            throw new IllegalArgumentException("Use userMemoryForget for facts and hypotheses");
         userMemory.remove(key);
         return json(Map.of("success", true, "key", key));
     }

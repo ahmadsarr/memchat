@@ -8,9 +8,10 @@ import org.iaproject.memchat.memory.ArchivalMemoryRepository;
 import org.iaproject.memchat.memory.MemoryManager;
 import org.iaproject.memchat.memory.MemoryToolsImpl;
 import org.iaproject.memchat.memory.RecallStorageRepository;
-import org.iaproject.memchat.memory.UserPreferencesRepository;
+import org.iaproject.memchat.memory.UserMemoryRepository;
 import org.iaproject.memchat.memory.UserMemory;
 import org.iaproject.memchat.tools.UserPreferencesTools;
+import org.iaproject.memchat.tools.UserMemoryTools;
 import org.iaproject.memchat.memory.impl.ArchivalMemoryImpl;
 import org.iaproject.memchat.memory.impl.UserMemoryImpl;
 import org.iaproject.memchat.memory.impl.FileArchivalMemoryRepository;
@@ -104,8 +105,8 @@ public class AgentBuilder {
         return this;
     }
 
-    public AgentBuilder userPreferencesRepository(UserPreferencesRepository repository) {
-        return userPreferencesMemory(new UserMemoryImpl(repository));
+    public AgentBuilder userMemoryRepository(UserMemoryRepository repository) {
+        return userMemory(new UserMemoryImpl(repository));
     }
 
     /** Share one memory instance across all agents belonging to the same user. */
@@ -120,7 +121,7 @@ public class AgentBuilder {
 
     public AgentLoop build() {
         if (memoryManager != null && userMemory != null) {
-            throw new IllegalStateException("Configure preferences on the custom MemoryManager and register its tools explicitly");
+            throw new IllegalStateException("Configure user memory on the custom MemoryManager and register its tools explicitly");
         }
         LLmApiClient llmClient = client != null
                 ? client
@@ -146,6 +147,7 @@ public class AgentBuilder {
         registeredTools.add(new MemoryToolsImpl(agentMemory));
         if (userMemory != null) {
             registeredTools.add(new UserPreferencesTools(userMemory));
+            registeredTools.add(new UserMemoryTools(userMemory));
         }
         registeredTools.add(new UserInteractionTools(userInteraction));
 

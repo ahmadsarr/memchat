@@ -23,7 +23,7 @@ public class MemoryToolsImpl implements MemoryTools {
 
     @Override
     @Tool(description = """
-            Search long-term archival memory for facts relevant to the user's query.
+            Search long-term archival memory for external knowledge relevant to the user's query.
             Use this before storing information to check for existing or duplicate facts.
             Results include the memory ID, stored content, and relevance score.
             """)
@@ -48,8 +48,9 @@ public class MemoryToolsImpl implements MemoryTools {
 
     @Override
     @Tool(description = """
-            Store a durable fact, preference, goal, or other information that should
-            remain available across future conversations. Search first and do not store
+            Store reusable external knowledge or task findings for future conversations.
+            When user memory tools are available, store personal preferences, facts,
+            goals and hypotheses there instead. Search first and do not store
             temporary remarks, duplicates, or unsupported assumptions. Returns the new ID.
             """)
     public String archivalStore(
