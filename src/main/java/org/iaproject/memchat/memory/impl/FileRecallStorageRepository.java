@@ -86,7 +86,11 @@ public class FileRecallStorageRepository implements RecallStorageRepository {
             return;
         }
         try {
-            entries.addAll(mapper.readValue(file.toFile(), new TypeReference<List<Entry>>() {}));
+            List<Entry> restored = mapper.readValue(file.toFile(), new TypeReference<List<Entry>>() {});
+            if (restored == null || restored.stream().anyMatch(entry -> entry == null || entry.message() == null)) {
+                throw new IllegalArgumentException("Recall entries and messages must not be null");
+            }
+            entries.addAll(restored);
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("Unable to load recall memory", e);
         }
