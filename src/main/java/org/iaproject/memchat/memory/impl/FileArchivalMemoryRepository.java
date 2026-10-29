@@ -97,7 +97,16 @@ public class FileArchivalMemoryRepository implements ArchivalMemoryRepository {
             return;
         }
         try {
-            memories.putAll(mapper.readValue(file.toFile(), new TypeReference<LinkedHashMap<String, String>>() {}));
+            Map<String, String> restored = mapper.readValue(file.toFile(),
+                    new TypeReference<LinkedHashMap<String, String>>() {});
+            if (restored == null) {
+                throw new IllegalArgumentException("Archival memory must be an object");
+            }
+            restored.forEach((id, content) -> {
+                requireText(id, "Memory ID");
+                requireText(content, "Memory content");
+            });
+            memories.putAll(restored);
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("Unable to load archival memory", e);
         }
