@@ -41,6 +41,27 @@ class StructuredUserMemoryTest {
         assertEquals("French", memory().list().get("response.language"));
     }
 
+    @Test void clockRollbackDoesNotBlockCorrectionsOrRegressTimestamps() {
+        var repository = new FileUserMemoryRepository(directory.resolve("clock.json"));
+        Instant created = Instant.parse("2026-01-01T00:00:00Z");
+        Instant updated = created.plusSeconds(100);
+        var first = new UserMemoryImpl(repository, Clock.fixed(created, ZoneOffset.UTC));
+        first.store("language.java", HYPOTHESIS, "Enjoys Java", "Observed questions");
+        var later = new UserMemoryImpl(repository, Clock.fixed(updated, ZoneOffset.UTC));
+        later.store("language.java", HYPOTHESIS, "Uses Java", "Clarification");
+        var earlier = new UserMemoryImpl(repository, Clock.fixed(created.minusSeconds(1), ZoneOffset.UTC));
+        earlier.store("language.java", HYPOTHESIS, "Uses Java at work", "Correction");
+        earlier.confirm("language.java", FACT, "User confirmation");
+        var restored = new UserMemoryImpl(repository).entries().get("language.java");
+        assertEquals(FACT, restored.type());
+        assertEquals("Uses Java at work", restored.content());
+        assertEquals(created.toString(), restored.createdAt());
+        assertEquals(updated.toString(), restored.updatedAt());
+        var between = new UserMemoryImpl(repository, Clock.fixed(created.plusSeconds(50), ZoneOffset.UTC));
+        between.store("language.java", FACT, "Still uses Java", "Correction");
+        assertEquals(updated.toString(), between.entries().get("language.java").updatedAt());
+    }
+
     @Test void correctionsAndConfirmationPreserveCreationAndRequireExplicitTransition() {
         Path file = directory.resolve("user.json");
         var repository = new FileUserMemoryRepository(file);
