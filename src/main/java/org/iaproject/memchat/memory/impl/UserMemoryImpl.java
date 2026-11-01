@@ -2,6 +2,7 @@ package org.iaproject.memchat.memory.impl;
 
 import org.iaproject.memchat.memory.*;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.*;
 
 /** Bounded persistent memory; synchronized updates publish only committed snapshots. */
@@ -35,7 +36,7 @@ public final class UserMemoryImpl implements UserMemory {
         var old = entries.get(key);
         if (old != null && old.type() != type)
             throw new IllegalArgumentException("Entry type cannot be changed by store; confirm a hypothesis explicitly or remove the entry first");
-        String now = clock.instant().toString();
+        String now = updateTimestamp(old);
         var entry = new UserMemoryEntry(type, content, source, old == null ? now : old.createdAt(), now);
         var updated = new LinkedHashMap<>(entries);
         updated.put(key, entry);
@@ -51,7 +52,7 @@ public final class UserMemoryImpl implements UserMemory {
         if (confirmedType != UserMemoryEntry.Type.FACT && confirmedType != UserMemoryEntry.Type.PREFERENCE)
             throw new IllegalArgumentException("Confirm as FACT or PREFERENCE");
         var updated = new LinkedHashMap<>(entries);
-        updated.put(key, new UserMemoryEntry(confirmedType, old.content(), source, old.createdAt(), clock.instant().toString()));
+        updated.put(key, new UserMemoryEntry(confirmedType, old.content(), source, old.createdAt(), updateTimestamp(old)));
         commit(updated);
     }
 
@@ -88,6 +89,15 @@ public final class UserMemoryImpl implements UserMemory {
                         profile.remove(e.getKey());
                 });
         return snapshot(profile);
+    }
+
+    private String updateTimestamp(UserMemoryEntry previous) {
+        Instant now = clock.instant();
+        if (previous != null) {
+            Instant lastUpdate = Instant.parse(previous.updatedAt());
+            if (now.isBefore(lastUpdate)) now = lastUpdate;
+        }
+        return now.toString();
     }
 
     private void commit(Map<String, UserMemoryEntry> updated) {
