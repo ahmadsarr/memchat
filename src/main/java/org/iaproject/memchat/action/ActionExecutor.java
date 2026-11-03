@@ -80,6 +80,9 @@ public class ActionExecutor {
                     ? ite.getCause()
                     : e;
 
+            if (cause instanceof Error error) {
+                throw error;
+            }
             if (cause instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
