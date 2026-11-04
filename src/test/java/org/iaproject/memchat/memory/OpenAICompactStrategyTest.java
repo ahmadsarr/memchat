@@ -33,6 +33,23 @@ class OpenAICompactStrategyTest {
     }
 
     @Test
+    void rejectsToolCallEvenWhenAccompaniedByText() {
+        var strategy = new OpenAICompactStrategy((messages, tools) ->
+                new LLmApiClient.ChatResponse("Searching before summarizing", List.of(
+                        new LLmApiClient.ToolCall("call-1", "search", "{}"))));
+        assertThrows(IllegalStateException.class, () -> strategy.compact(
+                "previous summary", List.of(LLmApiClient.ChatMessage.user("important fact"))));
+    }
+
+    @Test
+    void acceptsFinalSummaryWithNullToolCalls() {
+        var strategy = new OpenAICompactStrategy((messages, tools) ->
+                new LLmApiClient.ChatResponse(" final summary ", null));
+        assertEquals("final summary", strategy.compact("previous",
+                List.of(LLmApiClient.ChatMessage.user("important fact"))));
+    }
+
+    @Test
     void rejectsEmptyMessages() {
         var strategy = new OpenAICompactStrategy((messages, tools) ->
                 new LLmApiClient.ChatResponse("summary", List.of()));
