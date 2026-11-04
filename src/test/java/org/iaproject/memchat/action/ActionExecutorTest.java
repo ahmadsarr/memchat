@@ -11,6 +11,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ActionExecutorTest {
     public static class TestTools {
+        static final AssertionError FATAL = new AssertionError("fatal tool error");
+
+        @Tool(description = "Fail fatally")
+        public String fatal() {
+            throw FATAL;
+        }
+
+        @Tool(description = "Fail ordinarily")
+        public String ordinaryFailure() {
+            throw new IllegalStateException("ordinary tool failure");
+        }
+
         @Tool(description = "Complete the task", terminal = true)
         public String finish(@Param(description = "Answer") String answer) {
             return answer;
@@ -25,6 +37,19 @@ class ActionExecutorTest {
     private final ActionExecutor executor = new ActionExecutor(
             ToolParser.parse(List.of(new TestTools()))
     );
+
+    @Test
+    void propagatesOriginalFatalToolError() {
+        assertSame(TestTools.FATAL,
+                assertThrows(AssertionError.class, () -> executor.execute("fatal", "{}")));
+    }
+
+    @Test
+    void ordinaryToolExceptionsRemainRecoverableFailures() {
+        var result = executor.execute("ordinaryFailure", "{}");
+        assertFalse(result.success());
+        assertTrue(result.error().contains("ordinary tool failure"));
+    }
 
     @Test
     void terminalMetadataIsExposedWithoutKnowingTheToolClass() {
