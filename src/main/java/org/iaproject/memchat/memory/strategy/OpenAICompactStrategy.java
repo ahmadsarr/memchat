@@ -47,6 +47,9 @@ public class OpenAICompactStrategy implements CompactStrategy {
         if (response == null || response.content() == null || response.content().isBlank()) {
             throw new IllegalStateException("Compaction returned an empty summary");
         }
+        if (response.toolCalls() != null && !response.toolCalls().isEmpty()) {
+            throw new IllegalStateException("Compaction must return a final summary without tool calls");
+        }
         return response.content().trim();
     }
 
