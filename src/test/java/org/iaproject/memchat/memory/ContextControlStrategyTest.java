@@ -11,6 +11,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ContextControlStrategyTest {
     @Test
+    void rejectsNonFiniteThresholdRatios() {
+        for (double value : new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> new ContextControlStrategyImpl(8_000, 1_000, value, .95));
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> new ContextControlStrategyImpl(8_000, 1_000, .8, value));
+        }
+    }
+
+    @Test
     void classifiesNormalWarningAndFlushPressure() {
         var strategy = new ContextControlStrategyImpl(100, 0, 0.5, 0.8);
 
