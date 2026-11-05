@@ -23,7 +23,9 @@ public class ContextControlStrategyImpl implements ContextControlStrategy {
             double warningRatio,
             double flushRatio
     ) {
-        if (responseReserve < 0
+        if (!Double.isFinite(warningRatio)
+                || !Double.isFinite(flushRatio)
+                || responseReserve < 0
                 || responseReserve >= maxTokens
                 || warningRatio <= 0
                 || warningRatio >= flushRatio
