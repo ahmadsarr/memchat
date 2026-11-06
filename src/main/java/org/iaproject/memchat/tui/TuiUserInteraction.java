@@ -34,8 +34,8 @@ public final class TuiUserInteraction implements UserInteraction {
     @Override
     public String ask(String agentMessage) {
         waiting = true;
-        questionConsumer.accept(agentMessage);
         try {
+            questionConsumer.accept(agentMessage);
             return answers.take();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
